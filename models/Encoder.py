@@ -1,17 +1,16 @@
-import torch
+import torch, os
 import numpy as np, pandas as pd
-from matplotlib import pyplot as plt
 from transformers import AutoTokenizer, AutoModel
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import StratifiedKFold
-from sklearn.metrics import f1_score
+from torchsummary import summary
 
 def HuggTransformer(language, mode_weigth):
 
   if mode_weigth == 'online': 
     prefix = '' 
-  else: prefix = '/home/nitro/projects/PAN/data/vinai/bertweet-base'
-  print(prefix)
+  else: prefix = '/home/nitro/projects/PAN/data/'
+  
   if language == "ES":
     model = AutoModel.from_pretrained(prefix + "dccuchile/bert-base-spanish-wwm-cased")
     tokenizer = AutoTokenizer.from_pretrained(prefix + "dccuchile/bert-base-spanish-wwm-cased", do_lower_case=False)
@@ -23,8 +22,8 @@ def HuggTransformer(language, mode_weigth):
 
 def load_data(filename):
   file = pd.read_csv(filename, usecols=['text', 'HS'], sep=',').to_numpy()
-  text = file[:,0]
-  hateness = np.array(file[:,1], dtype=np.int32)
+  text = file[:30,0]
+  hateness = np.array(file[:30,1], dtype=np.int32)
 
   return text, hateness
 
@@ -43,23 +42,23 @@ class RawDataset(Dataset):
 		text  = self.data_frame.loc[idx, 'text']
 		
 		try:
-			value = self.data_frame.loc[idx, 'IS_SATIRIC']
+			value = self.data_frame.loc[idx, 'target']
 		except:
 			value =  0.
 
-		sample = {'text': text, 'satiric': value}
+		sample = {'text': text, 'target': value}
 		return sample
 
-def save_temporal_data(csv_train_path, text, eval = False, is_satiric = None, csv_dev_path = None, train_index = None, test_index = None):
+def save_temporal_data(csv_train_path, text, eval = False, target = None, csv_dev_path = None, train_index = None, test_index = None):
 
   if eval == True:
     train_index = [i for i in range(len(text))]
-    is_satiric = np.zeros((len(text),))
+    target = np.zeros((len(text),))
 
   data = text[train_index]
-  label = is_satiric[train_index]
+  label = target[train_index]
   
-  dictionary = {'text': data, 'IS_SATIRIC':list(label)} 
+  dictionary = {'text': data, 'target':list(label)} 
   df = pd.DataFrame(dictionary) 
   df.to_csv(csv_train_path)
   
@@ -67,9 +66,9 @@ def save_temporal_data(csv_train_path, text, eval = False, is_satiric = None, cs
     return
 
   data = text[test_index]
-  label = is_satiric[test_index]
+  label = target[test_index]
   
-  dictionary = {'text': data, 'IS_SATIRIC':label}  
+  dictionary = {'text': data, 'target':label}  
   df = pd.DataFrame(dictionary) 
   df.to_csv(csv_dev_path)
   
@@ -81,6 +80,7 @@ class Encoder(torch.nn.Module):
 		
     self.best_acc = -1
     self.max_length = max_length
+    self.language = language
     self.interm_neurons = interm_size
     self.transformer, self.tokenizer = HuggTransformer(language, mode_weigth)
     self.intermediate = torch.nn.Sequential(torch.nn.Linear(in_features=768, out_features=self.interm_neurons), torch.nn.LeakyReLU())
@@ -125,9 +125,9 @@ class Encoder(torch.nn.Module):
 
     return torch.optim.RMSprop(params, lr=lr*multiplier, weight_decay=decay)
   
-  def predict(self, text, interm_layer_size, max_length, language):
+  def predict(self, text, interm_layer_size, max_length, language, batch_size):
     self.eval()    
-    save_temporal_data('to_enode.csv', text, True)
+    save_temporal_data('to_encode.csv', text, True)
     devloader = DataLoader(RawDataset('to_enode.csv'), batch_size=batch_size, shuffle=False, num_workers=4)
 
     with torch.no_grad():
@@ -137,19 +137,21 @@ class Encoder(torch.nn.Module):
         torch.cuda.empty_cache() 
         inputs = data['text']
 
-        dev_out = model(inputs)
+        dev_out = self.forward(inputs)
         if k == 0:
           out = dev_out
         else: 
           out = torch.cat((out, dev_out), 0)
 
     out = out.cpu().numpy()
+    del devloader
+    os.system('rm to_encode.csv')
     return np.argmax(out , axis = 1)
+                   
+  def get_encodings(self, text, interm_layer_size, max_length, language, batch_size):
 
-  def get_encodings(text, interm_layer_size, max_length, language):
-
-    model.eval()    
-    save_temporal_data('to_enode.csv', text, True)
+    self.eval()    
+    save_temporal_data('to_encode.csv', text, True)
     devloader = DataLoader(RawDataset('to_enode.csv'), batch_size=batch_size, shuffle=False, num_workers=4)
 
     with torch.no_grad():
@@ -159,20 +161,22 @@ class Encoder(torch.nn.Module):
         torch.cuda.empty_cache() 
         inputs = data['text']
 
-        dev_out = model(inputs, True)
+        dev_out = self.forward(inputs, True)
         if k == 0:
           out = dev_out
         else: 
           out = torch.cat((out, dev_out), 0)
 
     out = out.cpu().numpy()
+    del devloader
+    os.system('rm to_encode.csv')
     return out   
 
 def train_Encoder(text, target, language, mode_weigth, splits = 5, epoches = 4, batch_size = 64, max_length = 120, interm_layer_size = 64, lr = 1e-5,  decay=2e-5, multiplier=1, increase=0.1):
 
   skf = StratifiedKFold(n_splits=splits, shuffle=True, random_state = 23)
-  csv_train_path = 'train.csv'
-  csv_dev_path = 'dev.csv'
+  csv_train_path = 'to_train.csv'
+  csv_dev_path = 'to_dev.csv'
 
   history = []
   for i, (train_index, test_index) in enumerate(skf.split(text, target)):  
@@ -181,6 +185,7 @@ def train_Encoder(text, target, language, mode_weigth, splits = 5, epoches = 4, 
     save_temporal_data(csv_train_path, text, False, target, csv_dev_path, train_index, test_index)
     
     model = Encoder(interm_layer_size, max_length, language, mode_weigth)
+    model.train()
     
     optimizer = model.makeOptimizer(lr, decay, multiplier, increase)
     trainloader = DataLoader(RawDataset(csv_train_path), batch_size=batch_size, shuffle=True, num_workers=4)
@@ -197,11 +202,12 @@ def train_Encoder(text, target, language, mode_weigth, splits = 5, epoches = 4, 
       for j, data in enumerate(trainloader, 0):
 
         torch.cuda.empty_cache()         
-        inputs, labels = data['text'], data['satiric'].to(model.device)      
-        # inputs = tokenizer(inputs, padding='max_length', max_length=max_length, truncation=True, return_tensors='pt').input_ids.to(model.device)
+        inputs, labels = data['text'], data['target'].to(model.device)      
+        
         optimizer.zero_grad()
         outputs = model(inputs)
         loss = model.loss_criterion(outputs, labels)
+        
         loss.backward()
         optimizer.step()
 
@@ -214,11 +220,9 @@ def train_Encoder(text, target, language, mode_weigth, splits = 5, epoches = 4, 
             acc = (acc + ((torch.max(outputs, 1).indices == labels).sum()/len(labels)).cpu().numpy())/2.0
             running_loss = (running_loss + loss.item())/2.0
 
-        del inputs, labels, outputs
-
         if (j+1)*100.0/batches - perc  >= 1 or j == batches-1:
           perc = (1+j)*100.0/batches
-          print('\r Epoch:{} step {} of {}. {}% loss: {}'.format(epoch+1, j+1, batches, np.round(perc, decimals=3), np.round(running_loss, decimals=3)), end="")
+          print('\r Epoch:{} step {} of {}. {}% loss: {}'.format(epoch+1, j+1, batches, np.round(perc, decimals=1), np.round(running_loss, decimals=3)), end="")
       
       model.eval()
       history[-1]['loss'] =  running_loss
@@ -227,7 +231,7 @@ def train_Encoder(text, target, language, mode_weigth, splits = 5, epoches = 4, 
         log = None
         for k, data in enumerate(devloader, 0):
           torch.cuda.empty_cache() 
-          inputs, label = data['text'], data['satiric'].to(model.device)
+          inputs, label = data['text'], data['target'].to(model.device)
 
           dev_out = model(inputs)
           if k == 0:
@@ -242,9 +246,13 @@ def train_Encoder(text, target, language, mode_weigth, splits = 5, epoches = 4, 
         history[-1]['acc'], history[-1]['dev_loss'], history[-1]['dev_acc'] = acc, dev_loss, dev_acc
 
       if model.best_acc < dev_acc:
-        model.save('bestmodelo_split_{}.pt'.format(i+1))
+        model.save('bestmodelo_split_{}_{}.pt'.format(language, i+1))
       print(" acc: {} ||| dev_loss: {} dev_acc: {}".format(np.round(acc, decimals=3), np.round(dev_loss, decimals=3), np.round(dev_acc, decimals=3)))
 
     print('Training Finished Split: {}'. format(i+1))
+    os.system('rm to_train.csv to_dev.csv')
+    del trainloader
+    del model
+    del devloader
     break
   return history

@@ -1,5 +1,8 @@
-import argparse
+import argparse, os, numpy as np
 from models.Encoder import Encoder, load_data, train_Encoder
+from utils import plot_training
+from sklearn.metrics import f1_score
+
 
 if __name__ == '__main__':
 
@@ -16,8 +19,8 @@ if __name__ == '__main__':
   parser.add_argument('-epoches', metavar='epoches', default=8, type=int, help='Trainning Epoches')
   parser.add_argument('-bs', metavar='batch_size', default=64, type=int, help='Batch Size')
   parser.add_argument('-dp', metavar='data_path', required=True, help='Data Path')
-  parser.add_argument('-mode', metavar='mode', required=True, help='Encoder Mode', choices=['train', 'encode'])
-  parser.add_argument('-wp', metavar='wp', help='Weight Path', default=None, choices=['train', 'encode', 'predict'])
+  parser.add_argument('-mode', metavar='mode', required=True, help='Encoder Mode', choices=['train', 'encode', 'predict'])
+  parser.add_argument('-wp', metavar='wp', help='Weight Path', default=None, )
 
 
   args = parser.parse_args()
@@ -38,25 +41,22 @@ if __name__ == '__main__':
 
   if mode == 'train':
     history = train_Encoder(text, hateness, language, mode_weigth, splits, epoches, batch_size, max_length, interm_layer_size, learning_rate, decay, 1, 0.1)
-    exit(0)
-    
-  elif wp == None:
+    # plot_training(history[-1])
+  elif weight_path is not None:
+    model = Encoder(interm_layer_size, max_length, language, mode_weigth)
+    model.load(weight_path)
+
+    if mode == 'encode':
+      out = model.get_encodings(text, interm_layer_size, max_length, language, batch_size)
+      np.save('Encodings', out)
+      print('Encodings Saved!')
+
+    if mode == 'predict':
+      out = model.predict(text, interm_layer_size, max_length, language, batch_size)
+      print('F1 Score: {}\nPrediction Done!'.format(str(f1_score(out, hateness))))
+
+  else:
     print('!!No weigth path set')
-    exit(1)
-
-  model = Encoder(interm_size=64, max_length=120, language='ES', mode_weigth=mode_weigth)
-  model.load(wp)
-
-  if mode == 'encode':
-    out = get_encodings(text, interm_layer_size, max_length, language)
-    np.save('Encodings')
-
-  if mode == 'predict':
-    out = model.predict(text, interm_layer_size, max_length, language)
-    print('F1 Score: ' + str(f1_score(out, hateness)))
-  exit(0)
-
-  #English task A F1 : 0.64945
-  #Spanish task A F1 : 0.74321
+    
 
 
