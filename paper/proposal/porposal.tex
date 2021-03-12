@@ -1,0 +1,88 @@
+\documentclass[11pt]{article}
+\usepackage[a4paper]{geometry}
+\usepackage{latexsym}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{color,soul}
+
+\usepackage{algorithm}
+\usepackage{algpseudocode} 
+
+
+\title{Proposal for PAN 2021 Profiling Hate Speech Spreaders}
+
+\author{Lunex Team (Amistad con los pueblos)}
+\date{}
+\begin{document}
+	\maketitle 	
+	
+	Considering the method proposed to capture the relations among the terms within the tweets,  the Architecture we proposed is necessarily modular (i.e has an encoder module and a prediction module). This is because the text representation will be computed employing a Transformer Language Model \textbf{(LM)}, specifically BETO for the Spanish language and BERTweet for the English language, which introduces a limit to the input sequence length.  \\	
+	Some proposed ideas related to using the transition point, due to the short remaining time and the amount of tuning combinations required by the hyper-parameters, will be considered after conducted the following ideas, which still being promising.  In the succeeding paragraphs, we describe the strategies proposed for training the Encoder module.	
+	
+	\subsection*{Encoder Module}
+	
+	One of the main challenges which brings this modular Architecture, because of the structure and the annotations coming with the data, is the selection of the targeted task to train the Encoder module. For this, the first idea that we propose to experiment with is applying fine-tuning over the LM  using Masked Language Modeling task \textbf{(MLM) }for introducing some bias towards the specific language relations existing within the proposed data and which are related to hate spreading.\\
+	
+	Another way to relate the encoding of the tweets with the actual task is fine-tuning the LM onto the specific task of predicting whether a tweet spreads hate or not, but the annotation on the provided data involves labeling only at the account level (i.e a hate spreader account may contain tweets without hate speech). To address this problem we could use external data, as the one from Hateval@Semeval 2019, assuming the risk of using data from different origin and domain.\\
+	Having this into account we propose to train the Encoder for predicting whether a message comes from the same author or not, in this way we can capture specific features that characterize the authors' style.  To this end, we may use a Siamese Neural Network \textbf{(SNN)} fixing the LM and adding some dense layers which learn representations that get closer tweets from the same person and take away the ones from different accounts w.r.t a distance or similarity function. Also before fixing the LM weights, we can fine-tune it with one of the ideas described above to relate it with the task language, and in case of choosing the second one, we can use the IMF technique to give relevance to the output vectors of the LM by using an attention mechanism. \\
+	
+	Nonetheless, with this approach come the challenges of choosing the pairs to train the SNN correctly and somehow keep the data from growing exaggeratedly, to address these problems we propose using an \textcolor{red}{Object Reduction} technique  described as :
+	
+	\begin{itemize}
+		\item Select seed for Hate prototype
+		\item Select seed for No\_Hate prototype
+		\item Get Hate prototype subset complement
+		\item Get Hate prototype subset complement
+	\end{itemize}
+
+	Finally, at this point, we have each tweet representation, but in order to represent a whole profile, we need to obtain a dense vector combining those tweets information. There are some ideas such as: take the normalized sum of them, apply max-pooling, or simply concatenate them.\\
+
+	Also, we could use a Graph Neural Network (GNN)\footnote{https://medium.com/dair-ai/an-illustrated-guide-to-graph-neural-networks-d5564a551783}, but here we have the same annotation problem again, since for obtaining a representation that relates a node (tweets) w.r.t their neighbors (the other profile tweets) we need to target some task, depending on which the GNN will learn to predict a value for a node having in account their surrounding nodes and their relationships.
+	\clearpage
+	\subsection*{Prediction Module}
+	
+	For this module we propose employ the\textbf{ Seidman Method} described as:
+	
+			\begin{algorithm}[!tbh]
+		\caption{\textbf{Seidman Method}} 
+		\hspace*{\algorithmicindent} \textbf{Input:} \\
+		$~~~~~~~~$Hate Profiles \textbf{A}, NO\_Hate Profiles \textbf{B}, Unknown Profile\textbf{ U}
+		\begin{algorithmic}[1]
+			\Procedure{Seidman\_Method}{ A, B, U}
+			\State Select non randomly from A a subset $A^*$
+			\ForAll{object $a$ from $A^*$:}
+			\State Select non randomly from B a subset $B^*$
+			\ForAll{object $b$ from $B^*$:}
+			\Loop: 1 to k:
+			\State Chose non randomly subset of features
+			\State Represent $\bar{a}$, $\bar{b}$, $\bar{U}$ from a, b, U respectively
+			\If{Sem($\bar{a}$, $\bar{U}$ ) $criterion$ Sem($\bar{b}$, $\bar{U}$ )}
+			\State ksuma\_bar ++
+			\Else: 
+			\State ksumb\_bar++
+			\EndIf
+			\EndLoop
+			\State suma\_bar += (ksuma\_bar $>$ksumb\_bar  )
+			\EndFor			
+			\State $\hat{y}$ 	+=  (suma\_bar  $>\frac{|B^*|}{2}$)
+			\EndFor					
+%			\If{ $\hat{y}  > |A^*|/2$}:
+%			\State $\hat{y}$ = 1 \Comment{Hate Speech Spreader}
+%			\Else: $\hat{y}$ = 0 \Comment{No Hate Speech Spreader}
+%			\EndIf
+			\State $\hat{y} = (\hat{y}  > \frac{|A^*|}{2})$\Comment{1: Hate Speech Spreader 0: No Hate Speech Spreader}
+			\EndProcedure
+			
+			\hspace*{\algorithmicindent} \textbf{Output:}  $\hat{y}$
+		\end{algorithmic}
+	\end{algorithm}
+	
+	Here, \textit{Sem} stands for a function which given the vectorial representation of two objects yields a numerical value describing some relation, such as how likely they are or the probability of both belonging to a certain class. \\
+	Also \textit{x criterion y}, is a placeholder to decide after comparing $x$ and $y$ if assume lager values as convenient or lower ones, this depends on \textit{Sem} (e.g a large similarity between $x$ and $y$  is convenient whereas a short distance it is) . \\
+	
+	We think using another SNN based on a simple FNN  as \textit{Sem} which predicts the probability of two objects (profile representations) belong to the same class could be interesting.  Also here we can combine each individual tweet representation from the LM by an attention mechanism.\\	
+	Nevertheless, we will test the Method performance based on conventional metrics. Note that we have only a few examples of profiles (Hate Speech Spreaders o not) to train a neural model.\\
+	
+	Having into account that a dense representation of a profile extracted by NNs contains features not necessarily independent and mostly uninterpretable, unlike conventional hand-crafted representations, referring to the Seidman Method we propose to avoid the features reduction section (the 1 to k loop).
+\end{document}

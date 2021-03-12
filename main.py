@@ -1,7 +1,9 @@
 import argparse, os, numpy as np
-from models.Encoder import Encoder, load_data, train_Encoder
-from utils import plot_training
+from models.models import Encoder, train_Encoder, train_Siamese, Siamese_Encoder
+from utils import plot_training, load_data, load_data_PAN, make_pairs
+from utils import make_triplets
 from sklearn.metrics import f1_score
+import torch
 
 
 if __name__ == '__main__':
@@ -18,9 +20,10 @@ if __name__ == '__main__':
   parser.add_argument('-interm_layer', metavar='int_layer', default = 64, type=int, help='Intermediate layers neurons')
   parser.add_argument('-epoches', metavar='epoches', default=8, type=int, help='Trainning Epoches')
   parser.add_argument('-bs', metavar='batch_size', default=64, type=int, help='Batch Size')
-  parser.add_argument('-dp', metavar='data_path', required=True, help='Data Path')
-  parser.add_argument('-mode', metavar='mode', required=True, help='Encoder Mode', choices=['train', 'encode', 'predict'])
-  parser.add_argument('-wp', metavar='wp', help='Weight Path', default=None, )
+  parser.add_argument('-dp', metavar='data_path', help='Data Path')
+  parser.add_argument('-mode', metavar='mode', required=True, help='Encoder Mode', choices=['tEncoder', 'tSiamese', 'eSiamese', 'encode', 'pEncoder', 'tPredictor'])
+  parser.add_argument('-wp', metavar='wp', help='Weight Path', default=None )
+  parser.add_argument('-loss', metavar='loss', help='Loss for Siamese Architecture', default='contrastive', choices=['triplet', 'contrastive'] )
 
 
   args = parser.parse_args()
@@ -36,27 +39,56 @@ if __name__ == '__main__':
   epoches = args.epoches
   data_path = args.dp
   mode_weigth = args.tmode
+  loss = args.loss
 
-  text, hateness = load_data(data_path)
-
-  if mode == 'train':
+  if mode == 'tEncoder':
+    text, hateness = load_data(data_path)
     history = train_Encoder(text, hateness, language, mode_weigth, splits, epoches, batch_size, max_length, interm_layer_size, learning_rate, decay, 1, 0.1)
-    # plot_training(history[-1])
-  elif weight_path is not None:
+    plot_training(history[-1], language)
+    exit(0)
+
+  if mode == 'encode':
+    if weight_path is None:
+      print('!!No weigth path set')
+      exit(1)
+
     model = Encoder(interm_layer_size, max_length, language, mode_weigth)
     model.load(weight_path)
+    tweets, _ = load_data_PAN(os.path.join(data_path, language.lower()), False)
+    out = [model.get_encodings(i, interm_layer_size, max_length, language, batch_size) for i in tweets]
+    torch.save(np.array(out), 'Encodings_{}.pt'.format(language))
+    print('Encodings Saved!')
 
-    if mode == 'encode':
-      out = model.get_encodings(text, interm_layer_size, max_length, language, batch_size)
-      np.save('Encodings', out)
-      print('Encodings Saved!')
+  if mode == 'tSiamese':
+    
+    authors = torch.load('Encodings_{}'.format(language))
+    if loss == 'triplet':
+      train, dev = make_triplets( authors, 40, 64 )
+    else: train, dev = make_pairs( authors, 40, 64 )
 
-    if mode == 'predict':
-      out = model.predict(text, interm_layer_size, max_length, language, batch_size)
-      print('F1 Score: {}\nPrediction Done!'.format(str(f1_score(out, hateness))))
+    history = train_Siamese(train, dev, language=language, lossm=loss, splits=splits, epoches=epoches, batch_size=batch_size, lr = learning_rate,  decay=2e-5)
+    plot_training(history, language + '_Siamese')
+    
+    print('Training Finish!')
 
-  else:
-    print('!!No weigth path set')
+  if mode == 'eSiamese':
+    if weight_path is None:
+      print('!!No weigth path set')
+      exit(1)
+
+    model = Siamese_Encoder([64, 32], language)
+    model.load(weight_path)
+    authors = torch.load('Encodings_{}'.format(language))
+    out = [model.get_encodings(i, batch_size) for i in authors.astype(np.float32)]
+    torch.save(np.array(out), 'Encodingst_{}.pt'.format(language))
+    print('Encodings Saved!')
+
+  if mode == 'pEncoder':
+    text, hateness = load_data(data_path)
+    out = model.predict(text, interm_layer_size, max_length, language, batch_size)
+    print('F1 Score: {}\nPrediction Done!'.format(str(f1_score(out, hateness))))
+
+  
     
 
 
