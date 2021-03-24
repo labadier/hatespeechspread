@@ -3,7 +3,7 @@ import numpy as np, pandas as pd
 from transformers import AutoTokenizer, AutoModel
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import StratifiedKFold
-from torchsummary import summary
+# from torchsummary import summary
 import random
 
 torch.manual_seed(0)
@@ -19,7 +19,7 @@ def HuggTransformer(language, mode_weigth):
   
   if language == "ES":
     model = AutoModel.from_pretrained(prefix + "dccuchile/bert-base-spanish-wwm-cased")
-    tokenizer = AutoTokenizer.from_pretrained(prefix + "dccuchile/bert-base-spanish-wwm-cased", do_lower_case=False)
+    tokenizer = AutoTokenizer.from_pretrained(prefix + "dccuchile/bert-base-spanish-wwm-cased", do_lower_case=False, TOKENIZERS_PARALLELISM=True)
   elif language == "EN":
     model = AutoModel.from_pretrained(prefix + "vinai/bertweet-base")
     tokenizer = AutoTokenizer.from_pretrained(prefix + "vinai/bertweet-base", do_lower_case=False)
@@ -104,6 +104,7 @@ class Encoder(torch.nn.Module):
     output = self.intermediate(X)
     if get_encoding == False:
       output = self.classifier(output)
+
     return output 
 
   def load(self, path):
@@ -248,6 +249,7 @@ def train_Encoder(text, target, language, mode_weigth, splits = 5, epoches = 4, 
 
         dev_loss = model.loss_criterion(out, log).item()
         dev_acc = ((torch.max(out, 1).indices == log).sum()/len(log)).cpu().numpy()
+        print(torch.max(out, 1).indices.sum())
         history[-1]['acc'].append(acc)
         history[-1]['dev_loss'].append(dev_loss)
         history[-1]['dev_acc'].append(dev_acc) 

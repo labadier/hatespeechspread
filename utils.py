@@ -4,15 +4,24 @@ import xml.etree.ElementTree as XT
 import torch
 
 def load_data(filename):
-  file = pd.read_csv(filename, usecols=['text', 'HS'], sep=',').to_numpy()
-  text = file[:,0]
-  hateness = np.array(file[:,1], dtype=np.int32)
+    file = pd.read_csv(filename, usecols=['text', 'HS'], sep=',').to_numpy()
+    text = file[:,0]
+    hateness = np.array(file[:,1], dtype=np.int32)
 
-  return text, hateness
+    return text, hateness
+
+def load_irony(filename):
+
+    file = pd.read_csv(filename, usecols=['preprotext', 'irony'], sep='\t').to_numpy()
+    text = file[:,0]
+    inorny = np.array(file[:,1], dtype=np.int32)
+
+    return text, inorny
+
 
 def read_truth(data_path):
     
-    with open(data_path + 'truth.txt') as target_file:
+    with open(data_path + '/truth.txt') as target_file:
 
         target = {}
 
@@ -30,13 +39,13 @@ def load_data_PAN(data_path, labeled=True):
     label = []
     tweets = []
 
-    if label == True:
+    if labeled == True:
         target = read_truth(data_path)
 
     for adr in addrs:
 
-        author = adr[len(data_path): len(adr) - 4]
-        if label == True:
+        author = adr[len(data_path)+1: len(adr) - 4]
+        if labeled == True:
             label.append(target[author])
         authors[author] = len(tweets)
         tweets.append([])
@@ -47,7 +56,7 @@ def load_data_PAN(data_path, labeled=True):
             tweets[-1].append(twit.text)
         tweets[-1] = np.array(tweets[-1])
     if labeled == True:
-        return tweets, authors, label
+        return tweets, authors, np.array(label)
     return tweets, authors
 
 def plot_training(history, language):
