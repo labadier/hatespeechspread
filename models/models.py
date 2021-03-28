@@ -52,6 +52,26 @@ class RawDataset(Dataset):
 		sample = {'text': text, 'target': value}
 		return sample
 
+class SiameseData(Dataset):
+  def __init__(self, data):
+
+    self.anchor = data[0] 
+    self.positive = data[1]
+    self.label = data[2]
+
+  def __len__(self):
+    return self.anchor.shape[0]
+
+  def __getitem__(self, idx):
+    if torch.is_tensor(idx):
+      idx = idx.tolist()
+    anchor  = self.anchor[idx] 
+    positive = self.positive[idx]
+    negative = self.label[idx]
+
+    sample = {'anchor': anchor, 'positive': positive, 'negative':negative}
+    return sample
+
 def save_temporal_data(csv_train_path, text, eval = False, target = None, csv_dev_path = None, train_index = None, test_index = None):
 
   if eval == True:
@@ -111,7 +131,9 @@ class Encoder(torch.nn.Module):
     self.load_state_dict(torch.load(path, map_location=self.device))
 
   def save(self, path):
-    torch.save(self.state_dict(), path)
+    if os.path.exists('./logs') == False:
+      os.system('mkdir logs')
+    torch.save(self.state_dict(), os.path.join('logs', path))
 
   def makeOptimizer(self, lr=1e-5, decay=2e-5, multiplier=1, increase=0.1):
 
@@ -328,7 +350,9 @@ class Siamese_Encoder(torch.nn.Module):
     self.load_state_dict(torch.load(path, map_location=self.device))
 
   def save(self, path):
-    torch.save(self.state_dict(), path)
+    if os.path.exists('./logs') == False:
+      os.system('mkdir logs')
+    torch.save(self.state_dict(), os.path.join('logs', path))
                    
   def get_encodings(self, text, batch_size):
 
@@ -351,16 +375,71 @@ class Siamese_Encoder(torch.nn.Module):
     del devloader
     return out   
 
-def train_Siamese(examples, examples_dev, language, lossm = 'contrastive', splits = 5, epoches = 4, batch_size = 64, interm_layer_size = [64, 32], lr = 1e-3,  decay=2e-5):
 
-  skf = StratifiedKFold(n_splits=splits, shuffle=True, random_state = 23)
+
+class Aditive_Attention(torch.nn.Module):
+
+  def __init__(self, units=32, input=64):
+    super(Aditive_Attention, self).__init__()
+    self.units = units
+    self.aditive = torch.nn.Linear(in_features=input, out_features=1)
+
+  def forward(self, x):
+
+    attention = self.aditive(x)
+    attention = torch.nn.functional.softmax(torch.squeeze(attention))
+    attention = x*torch.unsqueeze(attention, -1)
+    
+    wighted_sum = torch.sum(attention, axis=1)
+    return wighted_sum
+
+class Siamese_Metric(torch.nn.Module):
+
+  def __init__(self, interm_size=[64, 32], language='EN', loss='contrastive'):
+
+    super(Siamese_Metric, self).__init__()
+		
+    self.best_loss = 1e9
+    self.language = language
+    self.interm_neurons = interm_size
+    self.encoder = torch.nn.Sequential(Aditive_Attention(input=self.interm_neurons[0]), 
+                   # torch.nn.Linear(in_features=self.interm_neurons[0], out_features=self.interm_neurons[1]),
+                    # torch.nn.BatchNorm1d(num_features=self.interm_neurons[0]), torch.nn.LeakyReLU(),1
+                    # torch.nn.Linear(in_features=self.interm_neurons[0], out_features=self.interm_neurons[1]),
+                    torch.nn.LeakyReLU())
+    self.lossc = loss
+
+    if loss == 'contrastive':
+      self.loss_criterion = ContrastiveLoss()
+    else: self.loss_criterion = TripletLoss()
+
+    self.device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+    self.to(device=self.device)
+
+  def forward(self, A, X = None, Y = None, get_encoding = False):
+
+    X1 = self.encoder(A.to(device=self.device))
+    X2 = self.encoder(X.to(device=self.device))
+    
+    return  torch.nn.functional.pairwise_distance(X1, X2)
+
+
+  def load(self, path):
+    self.load_state_dict(torch.load(path, map_location=self.device))
+
+  def save(self, path):
+    if os.path.exists('./logs') == False:
+      os.system('mkdir logs')
+    torch.save(self.state_dict(), os.path.join('logs', path))
+ 
+
+def train_Siamese(model, examples, examples_dev, language, mode = 'metriclearn', lossm = 'contrastive', splits = 5, epoches = 4, batch_size = 64, lr = 1e-3,  decay=2e-5):
 
   history = {'loss': [], 'dev_loss': []}
-  model = Siamese_Encoder(interm_layer_size, language, loss=lossm)
   
   optimizer = torch.optim.RMSprop(model.parameters(), lr=lr, weight_decay=decay)
-  trainloader = DataLoader(examples, batch_size=batch_size, shuffle=True, num_workers=4, worker_init_fn=seed_worker)
-  devloader = DataLoader(examples_dev, batch_size=batch_size, shuffle=True, num_workers=4, worker_init_fn=seed_worker)
+  trainloader = DataLoader(SiameseData(examples), batch_size=batch_size, shuffle=True, num_workers=4, worker_init_fn=seed_worker)
+  devloader = DataLoader(SiameseData(examples), batch_size=batch_size, shuffle=True, num_workers=4, worker_init_fn=seed_worker)
   batches = len(trainloader)
   for epoch in range(epoches):
 
@@ -371,17 +450,17 @@ def train_Siamese(examples, examples_dev, language, lossm = 'contrastive', split
     for j, data in enumerate(trainloader, 0):
 
       torch.cuda.empty_cache()         
-      x1, x2  = data[:,:64], data[:,64:128]
+      x1, x2  = data['anchor'], data['positive']
+      
       optimizer.zero_grad()
 
       if lossm == 'contrastive':
-        labels = data[:,128].to(model.device) 
+        labels = data['negative'].to(model.device) 
         outputs = model(x1, x2)     
         loss = model.loss_criterion(outputs, labels)
       elif lossm == 'triplet':
-        x3 = data[:,128:]
-        outputs = model(x1, x2, x3)    
-        # print(outputs)
+        x3 = data['negative']
+        outputs = model(x1, x2, x3)
         loss = model.loss_criterion(outputs)
 
       loss.backward()
@@ -403,14 +482,14 @@ def train_Siamese(examples, examples_dev, language, lossm = 'contrastive', split
       log = None
       for k, data in enumerate(devloader, 0):
         torch.cuda.empty_cache() 
-        x1, x2 = data[:,:64], data[:,64:128]
+        x1, x2 = data['anchor'], data['positive']
         dev_out = None
         
         if lossm == 'contrastive':
-          labels = data[:,128].to(model.device) 
+          labels = data['negative'].to(model.device) 
           dev_out = model(x1, x2)
         elif lossm == 'triplet':
-          x3 = data[:,128:]
+          x3 = data['negative']
           dev_out = model(x1, x2, x3)    
         
         if k == 0:
@@ -431,7 +510,7 @@ def train_Siamese(examples, examples_dev, language, lossm = 'contrastive', split
       history['dev_loss'].append(dev_loss)
 
     if model.best_loss > dev_loss:
-      model.save('BSM_split_{}.pt'.format(language))
+      model.save('{}_{}.pt'.format(mode, language))
     print("\t||| dev_loss: {}".format(np.round(dev_loss, decimals=3)))
 
   del trainloader
