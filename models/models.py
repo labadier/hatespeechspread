@@ -101,7 +101,7 @@ class Encoder(torch.nn.Module):
 
     super(Encoder, self).__init__()
 		
-    self.best_acc = -1
+    self.best_acc = None
     self.max_length = max_length
     self.language = language
     self.interm_neurons = interm_size
@@ -270,16 +270,23 @@ def train_Encoder(text, target, language, mode_weigth, splits = 5, epoches = 4, 
             log = torch.cat((log, label), 0)
 
         dev_loss = model.loss_criterion(out, log).item()
-        dev_acc = ((torch.max(out, 1).indices == log).sum()/len(log)).cpu().numpy()
-        print(torch.max(out, 1).indices.sum())
+        dev_acc = ((torch.max(out, 1).indices == log).sum()/len(log)).cpu().numpy() 
         history[-1]['acc'].append(acc)
         history[-1]['dev_loss'].append(dev_loss)
         history[-1]['dev_acc'].append(dev_acc) 
 
-      if model.best_acc < dev_acc:
+      band = False
+      if model.best_acc is None or model.best_acc < dev_acc:
         model.save('bestmodelo_split_{}_{}.pt'.format(language, i+1))
-      print(" acc: {} ||| dev_loss: {} dev_acc: {}".format(np.round(acc, decimals=3), np.round(dev_loss, decimals=3), np.round(dev_acc, decimals=3)))
+        model.best_acc = dev_acc
+        band = True
 
+      print(" acc: {} ||| dev_loss: {} dev_acc: {}".format(np.round(acc, decimals=3), np.round(dev_loss, decimals=3), np.round(dev_acc.reshape(1, -1)[0], decimals=3)), end='')
+      if band == True:
+        print('         *Wights Updated*')
+      else: print(' ')
+
+      
     print('Training Finished Split: {}'. format(i+1))
     os.system('rm to_train.csv to_dev.csv')
     del trainloader
@@ -314,7 +321,7 @@ class Siamese_Encoder(torch.nn.Module):
 
     super(Siamese_Encoder, self).__init__()
 		
-    self.best_loss = 1e9
+    self.best_loss = None
     self.language = language
     self.interm_neurons = interm_size
     self.encoder = torch.nn.Sequential(torch.nn.Linear(in_features=64, out_features=self.interm_neurons[0]), 
@@ -399,13 +406,13 @@ class Siamese_Metric(torch.nn.Module):
 
     super(Siamese_Metric, self).__init__()
 		
-    self.best_loss = 1e9
+    self.best_loss = None
     self.language = language
     self.interm_neurons = interm_size
     self.encoder = torch.nn.Sequential(Aditive_Attention(input=self.interm_neurons[0]), 
                    # torch.nn.Linear(in_features=self.interm_neurons[0], out_features=self.interm_neurons[1]),
                     # torch.nn.BatchNorm1d(num_features=self.interm_neurons[0]), torch.nn.LeakyReLU(),1
-                    # torch.nn.Linear(in_features=self.interm_neurons[0], out_features=self.interm_neurons[1]),
+                    torch.nn.Linear(in_features=self.interm_neurons[0], out_features=self.interm_neurons[1]),
                     torch.nn.LeakyReLU())
     self.lossc = loss
 
@@ -418,6 +425,7 @@ class Siamese_Metric(torch.nn.Module):
 
   def forward(self, A, X = None, Y = None, get_encoding = False):
 
+    # print(A.shape)
     X1 = self.encoder(A.to(device=self.device))
     X2 = self.encoder(X.to(device=self.device))
     
@@ -437,7 +445,7 @@ def train_Siamese(model, examples, examples_dev, language, mode = 'metriclearn',
 
   history = {'loss': [], 'dev_loss': []}
   
-  optimizer = torch.optim.RMSprop(model.parameters(), lr=lr, weight_decay=decay)
+  optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=decay)
   trainloader = DataLoader(SiameseData(examples), batch_size=batch_size, shuffle=True, num_workers=4, worker_init_fn=seed_worker)
   devloader = DataLoader(SiameseData(examples), batch_size=batch_size, shuffle=True, num_workers=4, worker_init_fn=seed_worker)
   batches = len(trainloader)
@@ -509,9 +517,16 @@ def train_Siamese(model, examples, examples_dev, language, mode = 'metriclearn',
         
       history['dev_loss'].append(dev_loss)
 
-    if model.best_loss > dev_loss:
+    band = False
+    if model.best_loss is None or model.best_loss > dev_loss:
       model.save('{}_{}.pt'.format(mode, language))
-    print("\t||| dev_loss: {}".format(np.round(dev_loss, decimals=3)))
+      model.best_loss = dev_loss
+      band = True
+
+    print("\t||| dev_loss: {}".format(np.round(dev_loss, decimals=3)), end = '')
+    if band == True:
+      print('       *Weights Updated*')
+    else: print(' ')
 
   del trainloader
   del model

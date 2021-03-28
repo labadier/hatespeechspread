@@ -59,15 +59,20 @@ def load_data_PAN(data_path, labeled=True):
         return tweets, authors, np.array(label)
     return tweets, authors
 
-def plot_training(history, language):
+def plot_training(history, language, measure='loss'):
     
+    plotdev = 'dev_' + measure
+
     plt.plot(history['loss'])
-    plt.plot(history['dev_loss'])
+    plt.plot(history['dev_' + measure])
     plt.legend(['train', 'dev'], loc='upper left')
-    plt.ylabel('loss')
+    plt.ylabel(measure)
     plt.xlabel('Epoch')
-    x = np.argmin(history['dev_loss'])
-    plt.plot(x,history['dev_loss'][x], marker="o", color="red")
+    if measure == 'loss':
+        x = np.argmin(history['dev_loss'])
+    else: x = np.argmax(history['dev_loss'])
+
+    plt.plot(x,history['dev_' + measure][x], marker="o", color="red")
 
     if os.path.exists('./logs') == False:
         os.system('mkdir logs')
@@ -185,6 +190,9 @@ def make_profile_pairs( authors, labels, example, scale = 0.001 ):
     dev_pairs = dev_pairs[idd]
     dev_Slabels = dev_Slabels[idd]
 
-    train = [pairs[:, :100], pairs[:,100:], Slabels]
-    dev_pairs = [dev_pairs[:, :100], dev_pairs[:,100:], dev_Slabels]
+
+    train = [pairs[:, :200], pairs[:,200:], Slabels]
+    dev_pairs = [dev_pairs[:, :200], dev_pairs[:,200:], dev_Slabels]
+    # print(pairs.shape, train[1].shape)
     return train, dev_pairs 
+

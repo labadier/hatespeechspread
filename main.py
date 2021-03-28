@@ -4,7 +4,7 @@ from models.models import Encoder, train_Encoder, train_Siamese, Siamese_Encoder
 from utils import plot_training, load_data, load_data_PAN, make_pairs
 from utils import make_triplets, load_irony, make_profile_pairs
 from sklearn.metrics import f1_score
-from models.classifiers import K_Impostor
+from models.classifiers import K_Impostor, trainfcnn
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import classification_report, accuracy_score
 
@@ -80,7 +80,7 @@ if __name__ == '__main__':
     model.load(weight_path)
     tweets, _ = load_data_PAN(os.path.join(data_path, language.lower()), False)
     out = [model.get_encodings(i, interm_layer_size, max_length, language, batch_size) for i in tweets]
-    torch.save(np.array(out), 'Encodings_{}.pt'.format(language))
+    torch.save(np.array(out), 'logs/Encodings_{}.pt'.format(language))
     print('Encodings Saved!')
 
   if mode == 'tSiamese':
@@ -89,7 +89,7 @@ if __name__ == '__main__':
       Train Siamese over authorship verification task with encodings obtained from Transformer based encoders
     '''
 
-    authors = torch.load('Encodings_{}.pt'.format(language))
+    authors = torch.load('logs/Encodings_{}.pt'.format(language))
     if loss == 'triplet':
       train, dev = make_triplets( authors, 40, 64 )
     else: train, dev = make_pairs( authors, 40, 64 )
@@ -113,7 +113,7 @@ if __name__ == '__main__':
     authors = torch.load('logs/Encodings_{}.pt'.format(language))
     out = [model.get_encodings(i, batch_size) for i in authors.astype(np.float32)]
 
-    torch.save(np.array(out), 'Encodingst_{}.pt'.format(language))
+    torch.save(np.array(out), 'logs/Encodingst_{}.pt'.format(language))
     print('Encodings Saved!')
 
   if mode == 'metriclearn':
@@ -121,13 +121,13 @@ if __name__ == '__main__':
       Train Siamese with profiles classification task for metric learning
     '''
     _, _, labels = load_data_PAN(os.path.join(data_path, language.lower()), labeled=True)
-    authors = torch.load('Encodings_{}.pt'.format(language))
+    authors = torch.load('logs/Encodings_{}.pt'.format(language))
 
     if loss == 'contrastive':
       train, dev = make_profile_pairs( authors, labels, 10, 64 )
 
     model = Siamese_Metric([64, 32], language=language, loss=loss)
-    history = train_Siamese(model, train, dev, mode = 'metriclearn', language=language, lossm=loss, splits=splits, epoches=epoches, batch_size=batch_size, lr = learning_rate,  decay=2e-5)
+    history = train_Siamese(model, train, dev, mode = 'metriclearn', language=language, lossm=loss, splits=splits, epoches=epoches, batch_size=batch_size, lr = learning_rate,  decay=decay)
     plot_training(history, language + '_MetricL')
     
     print('Metric Learning Finish!')
@@ -143,10 +143,11 @@ if __name__ == '__main__':
     if metric == 'deepmetric':
       model = Siamese_Metric([64, 32], language=language, loss=loss)
       model.load(os.path.join('logs', 'metriclearn_{}.pt'.format(language)))
-      encodings = torch.load('Encodings_{}.pt'.format(language))
+      encodings = torch.load('logs/Encodings_{}.pt'.format(language))
+      
     else:
       enc_name = 'Encodings' if ecnImp == 'transformer' else 'Encodingst'
-      encodings = torch.load('{}_{}.pt'.format(enc_name, language))
+      encodings = torch.load('logs/{}_{}.pt'.format(enc_name, language))
       encodings = np.mean(encodings, axis=1)
       
     skf = StratifiedKFold(n_splits=splits, shuffle=True, random_state = 23)   
@@ -178,7 +179,17 @@ if __name__ == '__main__':
     # file.close()
       
   
-    
+  if mode == 'tfcnn':
+
+    '''
+      Train Train Att-FCNN
+    '''
+    _, _, labels = load_data_PAN(os.path.join(data_path, language.lower()), labeled=True)
+    encodings = torch.load('logs/Encodings_{}.pt'.format(language))
+
+    history = trainfcnn([encodings, labels], language, splits, epoches, batch_size, interm_layer_size = [64, 32], lr=learning_rate, decay=decay)
+    plot_training(history[-1], language + '_fcnn', 'acc')
+    exit(0)
 
 
 
