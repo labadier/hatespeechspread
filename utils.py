@@ -63,14 +63,14 @@ def plot_training(history, language, measure='loss'):
     
     plotdev = 'dev_' + measure
 
-    plt.plot(history['loss'])
+    plt.plot(history[measure])
     plt.plot(history['dev_' + measure])
     plt.legend(['train', 'dev'], loc='upper left')
     plt.ylabel(measure)
     plt.xlabel('Epoch')
     if measure == 'loss':
         x = np.argmin(history['dev_loss'])
-    else: x = np.argmax(history['dev_loss'])
+    else: x = np.argmax(history['dev_acc'])
 
     plt.plot(x,history['dev_' + measure][x], marker="o", color="red")
 

@@ -1,4 +1,5 @@
 #%%
+from functools import WRAPPER_ASSIGNMENTS
 import torch, os
 from models.models import  Aditive_Attention, seed_worker
 from torch.utils.data import Dataset, DataLoader
@@ -20,14 +21,9 @@ def measure(x, y, method='similarity'):
 
 def signature(sn, nu, method='similarity'):
 
-    coef = None
     if method in distance:
-        coef = 1
-    else: coef = -1
- 
-    if  sn < nu:
-        return 1*coef
-    else: return -1*coef
+        return sn < nu
+    else: return sn > nu
 
 def predict_example(spreader, no_spreader, u, checkp=0.25, method='euclidean'):
     
@@ -43,9 +39,9 @@ def predict_example(spreader, no_spreader, u, checkp=0.25, method='euclidean'):
             nu = measure(n, u, method)
 
             y_hat_aster += signature(sn, nu, method)
-        y_hat = y_hat + (y_hat_aster >= 0) - (y_hat_aster < 0)
+        y_hat = y_hat + (y_hat_aster >= len(no_spreader_aster)/2)
     # print(y_hat, len(spreader_aster))
-    return (y_hat >= 0)
+    return y_hat 
 
 
 def K_Impostor(spreader, no_spreader, unk, checkp=0.25, method='euclidean', model=None):
@@ -55,7 +51,10 @@ def K_Impostor(spreader, no_spreader, unk, checkp=0.25, method='euclidean', mode
 
     Y = np.zeros((len(unk), ))
     for i, u in zip(range(len(unk)), unk):
-        Y[i] = predict_example(spreader, no_spreader, u, checkp, method)
+        ansp = predict_example(spreader, no_spreader, u, checkp, method)
+        ansn = predict_example(no_spreader, spreader, u, checkp, method)
+        # print(ansp, ansn)
+        Y[i] = (ansp >= ansn)
     # print(Y)
     return Y
 
@@ -111,20 +110,20 @@ class FNN_Classifier(torch.nn.Module):
 
  
 
-def trainfcnn(data, language, splits = 5, epoches = 4, batch_size = 64, interm_layer_size = [64, 32], lr = 1e-5,  decay=0):
+def trainfcnn(task_data, language, splits = 5, epoches = 4, batch_size = 64, interm_layer_size = [64, 32], lr = 1e-5,  decay=0):
  
     skf = StratifiedKFold(n_splits=splits, shuffle=True, random_state = 23)
 
     history = []
     overall_acc = 0
-    for i, (train_index, test_index) in enumerate(skf.split(np.zeros_like(data[1]), data[1])):  
+    for i, (train_index, test_index) in enumerate(skf.split(np.zeros_like(task_data[1]), task_data[1])):  
 
         history.append({'loss': [], 'acc':[], 'dev_loss': [], 'dev_acc': []})
         model = FNN_Classifier(interm_layer_size, language)
 
         optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=decay)
-        trainloader = DataLoader(FNNData([data[0][train_index], data[1][train_index]]), batch_size=batch_size, shuffle=True, num_workers=4, worker_init_fn=seed_worker)
-        devloader = DataLoader(FNNData([data[0][test_index], data[1][test_index]]), batch_size=batch_size, shuffle=True, num_workers=4, worker_init_fn=seed_worker)
+        trainloader = DataLoader(FNNData([task_data[0][train_index], task_data[1][train_index]]), batch_size=batch_size, shuffle=True, num_workers=4, worker_init_fn=seed_worker)
+        devloader = DataLoader(FNNData([task_data[0][test_index], task_data[1][test_index]]), batch_size=batch_size, shuffle=True, num_workers=4, worker_init_fn=seed_worker)
         batches = len(trainloader)
 
         for epoch in range(epoches):
