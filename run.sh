@@ -24,8 +24,8 @@ clear
 # python main.py -l EN  -mode metriclearn -bs 64 -epoches 120 -loss contrastive -lr 1e-3 -decay 0 -wp logs/BSM_split_EN.pt -dp data/pan21-author-profiling-training-2021-03-14 -phase train
 
 #Impostors Evaluation
-# python main.py -l EN  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 0.45 -metric cosine -ecnImp siamese -dt data/pan21-author-profiling-training-2021-03-14 -output logs
-# python main.py -l ES  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 0.35 -metric cosine -ecnImp siamese -dt data/pan21-author-profiling-training-2021-03-14 -output logs
+python main.py -l EN  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 0.4 -metric cosine -ecnImp trasformer -dt data/pan21-author-profiling-training-2021-03-14 -output logs
+python main.py -l ES  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 0.45 -metric cosine -ecnImp trasformer -dt data/pan21-author-profiling-training-2021-03-14 -output logs
 
 #FCNN Train
 # python main.py -l EN  -mode tfcnn -dp data/pan21-author-profiling-training-2021-03-14 -bs 32 -epoches 120 -lr 1e-3 -decay 0 -phase train
@@ -33,8 +33,8 @@ clear
 
 
 #FCNN pred
-python main.py -l EN  -mode tfcnn -dt data/pan21-author-profiling-training-2021-03-14 -bs 32 -phase test -output logs
-python main.py -l ES  -mode tfcnn -dt data/pan21-author-profiling-training-2021-03-14 -bs 32 -phase test -output logs
+# python main.py -l EN  -mode tfcnn -dt data/pan21-author-profiling-training-2021-03-14 -bs 32 -phase test -output logs
+# python main.py -l ES  -mode tfcnn -dt data/pan21-author-profiling-training-2021-03-14 -bs 32 -phase test -output logs
 
 #Reynier
 #python main.py -l EN -dp data/hateval2019/training.tsv -mode tEncoder -tmode offline -bs 16 -epoches 3

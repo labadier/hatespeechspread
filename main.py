@@ -14,7 +14,7 @@ def check_params(args=None):
 
   parser.add_argument('-l', metavar='language', default='ES', help='Task Language')
   parser.add_argument('-phase', metavar='phase', help='Phase')
-  parser.add_argument('-f', metavar='filee', help='Phase')
+  # parser.add_argument('-f', metavar='filee', help='Phase')
   parser.add_argument('-output', metavar='output', help='Output Path')
   parser.add_argument('-lr', metavar='lrate', default = 1e-5, type=float, help='learning rate')
   parser.add_argument('-tmode', metavar='tmode', default = 'online', help='Encoder Weights Mode')
@@ -54,7 +54,7 @@ if __name__ == '__main__':
   metric = parameters.metric
   coef = parameters.rp
   ecnImp = parameters.ecnImp
-  filee = parameters.f
+  # filee = parameters.f
   test_path = parameters.dt
   phase = parameters.phase
   output = parameters.output
@@ -163,10 +163,10 @@ if __name__ == '__main__':
     skf = StratifiedKFold(n_splits=splits, shuffle=True, random_state = 23)   
     overl_acc = 0
 
-    file = open("{}_{}.txt".format(filee, language), "a")
-    file.write('*'*50 + '\n')
-    file.write("   metric:{}  coef:{}   Encoder:{}\n".format(metric, coef, ecnImp))
-    file.write('*'*50 + '\n')
+    # file = open("{}_{}.txt".format(filee, language), "a")
+    # file.write('*'*50 + '\n')
+    # file.write("   metric:{}  coef:{}   Encoder:{}\n".format(metric, coef, ecnImp))
+    # file.write('*'*50 + '\n')
 
     Y_Test = np.zeros((len(tweets_test),))
     for i, (train_index, test_index) in enumerate(skf.split(encodings, labels)):
@@ -177,19 +177,19 @@ if __name__ == '__main__':
       N_idx = list(np.argwhere(labels==0).reshape(-1))
       
       y_hat = K_Impostor(encodings[P_idx], encodings[N_idx], unk, checkp=coef, method=metric, model=model)
-      # Y_Test += K_Impostor(encodings[P_idx], encodings[N_idx], encodings_test, checkp=coef, method=metric, model=model)
+      Y_Test += K_Impostor(encodings[P_idx], encodings[N_idx], encodings_test, checkp=coef, method=metric, model=model)
 
       metrics = classification_report(unk_labels, y_hat, target_names=['No Hate', 'Hate'],  digits=4, zero_division=1)
       acc = accuracy_score(unk_labels, y_hat)
       overl_acc += acc
-      # print('Report Split: {} - acc: {}{}'.format(i+1, np.round(acc, decimals=2), '\n'))
-      file.write('Report Split: {} - acc: {}{}'.format(i+1, np.round(acc, decimals=2), '\n'))
-    #   print(metrics)
+      print('Report Split: {} - acc: {}{}'.format(i+1, np.round(acc, decimals=2), '\n'))
+      # file.write('Report Split: {} - acc: {}{}'.format(i+1, np.round(acc, decimals=2), '\n'))
+      print(metrics)
     #   # break
-    # print('Accuracy {}: {}'.format(language, np.round(overl_acc/splits, decimals=2)))
-    file.write('Accuracy {}: {}\n\n'.format(language, np.round(overl_acc/splits, decimals=2)))
-    file.close()
-    # save_predictions(idx, np.int32(np.round(Y_Test/splits, decimals=0)), language, output)
+    print('Accuracy {}: {}'.format(language, np.round(overl_acc/splits, decimals=2)))
+    # file.write('Accuracy {}: {}\n\n'.format(language, np.round(overl_acc/splits, decimals=2)))
+    # file.close()
+    save_predictions(idx, np.int32(np.round(Y_Test/splits, decimals=0)), language, output)
     # print(classification_report(labels, np.int32(np.round(Y_Test/splits, decimals=0)), target_names=['No Hate', 'Hate'],  digits=4, zero_division=1))
       
   
