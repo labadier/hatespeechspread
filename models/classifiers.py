@@ -89,6 +89,7 @@ class FNN_Classifier(torch.nn.Module):
         self.encoder = torch.nn.Sequential(Aditive_Attention(input=self.interm_neurons[0]), 
                     torch.nn.Linear(in_features=self.interm_neurons[0], out_features=self.interm_neurons[1]),
                     torch.nn.BatchNorm1d(num_features=self.interm_neurons[1]), torch.nn.LeakyReLU(),
+                    torch.nn.Dropout(p=0.2),
                     torch.nn.Linear(in_features=self.interm_neurons[1], out_features=2))
         self.loss_criterion = torch.nn.CrossEntropyLoss() 
 
@@ -107,8 +108,6 @@ class FNN_Classifier(torch.nn.Module):
             os.system('mkdir logs')
         torch.save(self.state_dict(), os.path.join('logs', path))
 
-
- 
 
 def trainfcnn(task_data, language, splits = 5, epoches = 4, batch_size = 64, interm_layer_size = [64, 32], lr = 1e-5,  decay=0):
  
@@ -201,3 +200,29 @@ def trainfcnn(task_data, language, splits = 5, epoches = 4, batch_size = 64, int
     print(50*'*','\nOveral Accuracy: {}\n'.format(overall_acc/splits), 50*'*')
     return history
 
+def predictfnn(encodings, idx, language, output, splits, batch_size, save_predictions):
+
+    model = FNN_Classifier(interm_size=[64, 32], language=language)
+    devloader = DataLoader(FNNData([encodings, np.array(idx)]), batch_size=batch_size, shuffle=False, num_workers=4, worker_init_fn=seed_worker)
+
+    model.eval()
+    y_hat = np.zeros((len(idx), ))
+    for i in range(splits):
+        
+        model.load('logs/classifier_{}_{}.pt'.format(language, i+1))
+        with torch.no_grad():
+            out = None
+            ids = None
+            for k, data in enumerate(devloader, 0):
+                inputs, _ = data['profile'], data['label']
+                dev_out = model(inputs)
+                if k == 0:
+                        out = dev_out
+                else:  out = torch.cat((out, dev_out), 0)
+
+            y_hat += torch.argmax(torch.nn.functional.softmax(out, dim=-1), axis=-1).cpu().numpy()
+
+    y_hat = np.int32(np.round(y_hat/splits, decimals=0))
+
+    save_predictions(idx, y_hat , language, output)
+                

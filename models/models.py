@@ -283,7 +283,7 @@ def train_Encoder(text, target, language, mode_weigth, splits = 5, epoches = 4, 
 
       print(" acc: {} ||| dev_loss: {} dev_acc: {}".format(np.round(acc, decimals=3), np.round(dev_loss, decimals=3), np.round(dev_acc.reshape(1, -1)[0], decimals=3)), end='')
       if band == True:
-        print('         *Wights Updated*')
+        print('         *Weights Updated*')
       else: print(' ')
 
       
@@ -397,8 +397,8 @@ class Aditive_Attention(torch.nn.Module):
     attention = torch.nn.functional.softmax(torch.squeeze(attention))
     attention = x*torch.unsqueeze(attention, -1)
     
-    wighted_sum = torch.sum(attention, axis=1)
-    return wighted_sum
+    weighted_sum = torch.sum(attention, axis=1)
+    return weighted_sum
 
 class Siamese_Metric(torch.nn.Module):
 
@@ -441,7 +441,7 @@ class Siamese_Metric(torch.nn.Module):
     torch.save(self.state_dict(), os.path.join('logs', path))
  
 
-def train_Siamese(model, examples, examples_dev, language, mode = 'metriclearn', lossm = 'contrastive', splits = 5, epoches = 4, batch_size = 64, lr = 1e-3,  decay=2e-5):
+def train_Siamese(model, examples, language, mode = 'metriclearn', lossm = 'contrastive', splits = 5, epoches = 4, batch_size = 64, lr = 1e-3,  decay=2e-5):
 
   history = {'loss': [], 'dev_loss': []}
   

@@ -36,6 +36,7 @@ def load_data_PAN(data_path, labeled=True):
     addrs = np.array(glob.glob(data_path + '/*.xml'));addrs.sort()
 
     authors = {}
+    indx = []
     label = []
     tweets = []
 
@@ -48,6 +49,7 @@ def load_data_PAN(data_path, labeled=True):
         if labeled == True:
             label.append(target[author])
         authors[author] = len(tweets)
+        indx.append(author)
         tweets.append([])
 
         tree = XT.parse(adr)
@@ -56,8 +58,8 @@ def load_data_PAN(data_path, labeled=True):
             tweets[-1].append(twit.text)
         tweets[-1] = np.array(tweets[-1])
     if labeled == True:
-        return tweets, authors, np.array(label)
-    return tweets, authors
+        return tweets, indx, np.array(label)
+    return tweets, indx
 
 def plot_training(history, language, measure='loss'):
     
@@ -196,3 +198,13 @@ def make_profile_pairs( authors, labels, example, scale = 0.001 ):
     # print(pairs.shape, train[1].shape)
     return train, dev_pairs 
 
+def save_predictions(idx, y_hat, language, path):
+    
+    language = language.lower()
+    path = os.path.join(path, language)
+    if os.path.isdir(path) == False:
+        os.system('mkdir {}'.format(path))
+    
+    for i in range(len(idx)):
+        with open(os.path.join(path, idx[i] + '.xml'), 'w') as file:
+            file.write('<author id={}\n\tlanguage={}\n\ttypye={}\n/>'.format(idx[i], language, y_hat[i], i))
