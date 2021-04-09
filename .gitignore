@@ -1,4 +1,5 @@
 data/vinai
+data/bert-base-multilingual-cased
 data/dccuchile
 models/__pycache__
 __pycache__
@@ -8,3 +9,5 @@ data/pan21-author-profiling-training-2021-03-14
 *.pt
 tmp*
 logs
+.python-version
+tira.sh

@@ -7,6 +7,7 @@ from sklearn.metrics import f1_score
 from models.classifiers import K_Impostor, trainfcnn, predictfnn
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import classification_report, accuracy_score
+from utils import bcolors
 
 
 def check_params(args=None):
@@ -76,17 +77,22 @@ if __name__ == '__main__':
     '''
       Get Encodings for each author's message from the Transformer based encoders
     '''
-
-    if weight_path is None:
-      print('!!No weigth path set')
+    weight_path = os.path.join(weight_path, 'bestmodelo_split_{}_1.pt'.format(language[:2]))
+    
+    if os.path.isfile(weight_path) == False:
+      print( f"{bcolors.FAIL}{bcolors.BOLD}ERROR: Weight path set unproperly{bcolors.ENDC}")
       exit(1)
 
+    
     model = Encoder(interm_layer_size, max_length, language, mode_weigth)
     model.load(weight_path)
-    tweets, _ = load_data_PAN(os.path.join(data_path, language.lower()), False)
-    out = [model.get_encodings(i, interm_layer_size, max_length, language, batch_size) for i in tweets]
-    torch.save(np.array(out), 'logs/{}_Encodings_{}.pt'.format(phase, language))
-    print('Encodings Saved!')
+    if language[-1] == '_':
+      model.transformer.load_adapter("logs/hate_adpt_{}".format(language[:2].lower()))
+    
+    tweets, _ = load_data_PAN(os.path.join(data_path, language[:2].lower()), False)
+    out = [model.get_encodings(i, batch_size) for i in tweets]
+    torch.save(np.array(out), 'logs/{}_Encodings_{}.pt'.format(phase, language[:2]))
+    print(f"{bcolors.OKCYAN}{bcolors.BOLD}Encodings Saved Successfully{bcolors.ENDC}")
 
   if mode == 'tSiamese':
     
@@ -129,7 +135,7 @@ if __name__ == '__main__':
     authors = torch.load('logs/train_Encodings_{}.pt'.format(language))
 
     if loss == 'contrastive':
-      train, dev = make_profile_pairs( authors, labels, 10, 64 )
+      train, dev = make_profile_pairs( authors, labels, 15, 64 )
 
     model = Siamese_Metric([64, 32], language=language, loss=loss)
     history = train_Siamese(model, train, dev, mode = 'metriclearn', language=language, lossm=loss, splits=splits, epoches=epoches, batch_size=batch_size, lr = learning_rate,  decay=decay)
@@ -172,12 +178,14 @@ if __name__ == '__main__':
     for i, (train_index, test_index) in enumerate(skf.split(encodings, labels)):
       unk = encodings[test_index]
       unk_labels = labels[test_index]  
+      known = encodings[train_index]
+      known_labels = labels[train_index]
 
-      P_idx = list(np.argwhere(labels==1).reshape(-1))
-      N_idx = list(np.argwhere(labels==0).reshape(-1))
+      P_idx = list(np.argwhere(known_labels==1).reshape(-1))
+      N_idx = list(np.argwhere(known_labels==0).reshape(-1))
       
-      y_hat = K_Impostor(encodings[P_idx], encodings[N_idx], unk, checkp=coef, method=metric, model=model)
-      Y_Test += K_Impostor(encodings[P_idx], encodings[N_idx], encodings_test, checkp=coef, method=metric, model=model)
+      y_hat = K_Impostor(known[P_idx], known[N_idx], unk, checkp=coef, method=metric, model=model)
+      # Y_Test += K_Impostor(encodings[P_idx], encodings[N_idx], encodings_test, checkp=coef, method=metric, model=model)
 
       metrics = classification_report(unk_labels, y_hat, target_names=['No Hate', 'Hate'],  digits=4, zero_division=1)
       acc = accuracy_score(unk_labels, y_hat)
@@ -189,7 +197,7 @@ if __name__ == '__main__':
     print('Accuracy {}: {}'.format(language, np.round(overl_acc/splits, decimals=2)))
     # file.write('Accuracy {}: {}\n\n'.format(language, np.round(overl_acc/splits, decimals=2)))
     # file.close()
-    save_predictions(idx, np.int32(np.round(Y_Test/splits, decimals=0)), language, output)
+    # save_predictions(idx, np.int32(np.round(Y_Test/splits, decimals=0)), language, output)
     # print(classification_report(labels, np.int32(np.round(Y_Test/splits, decimals=0)), target_names=['No Hate', 'Hate'],  digits=4, zero_division=1))
       
   

@@ -3,6 +3,17 @@ import pandas as pd, numpy as np, glob
 import xml.etree.ElementTree as XT
 import torch, os
 
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+    
 def load_data(filename):
     file = pd.read_csv(filename, usecols=['text', 'HS'], sep=',').to_numpy()
     text = file[:,0]
@@ -207,4 +218,4 @@ def save_predictions(idx, y_hat, language, path):
     
     for i in range(len(idx)):
         with open(os.path.join(path, idx[i] + '.xml'), 'w') as file:
-            file.write('<author id={}\n\tlanguage={}\n\ttypye={}\n/>'.format(idx[i], language, y_hat[i], i))
+            file.write('<author id=\"{}\"\n\tlang=\"{}\"\n\ttype=\"{}\"\n/>'.format(idx[i], language, y_hat[i]))

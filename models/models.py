@@ -1,10 +1,10 @@
 import torch, os
 import numpy as np, pandas as pd
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoTokenizer, AutoModel, AdapterType
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import StratifiedKFold
-# from torchsummary import summary
 import random
+from utils import bcolors
 
 torch.manual_seed(0)
 random.seed(0)
@@ -18,11 +18,19 @@ def HuggTransformer(language, mode_weigth):
   else: prefix = '/home/nitro/projects/PAN/data/'
   
   if language == "ES":
-    model = AutoModel.from_pretrained(prefix + "dccuchile/bert-base-spanish-wwm-cased")
-    tokenizer = AutoTokenizer.from_pretrained(prefix + "dccuchile/bert-base-spanish-wwm-cased", do_lower_case=False, TOKENIZERS_PARALLELISM=True)
+    model = AutoModel.from_pretrained(os.path.join(prefix , "dccuchile/bert-base-spanish-wwm-cased"))
+    tokenizer = AutoTokenizer.from_pretrained(os.path.join(prefix , "dccuchile/bert-base-spanish-wwm-cased"), do_lower_case=False, TOKENIZERS_PARALLELISM=True)
   elif language == "EN":
-    model = AutoModel.from_pretrained(prefix + "vinai/bertweet-base")
-    tokenizer = AutoTokenizer.from_pretrained(prefix + "vinai/bertweet-base", do_lower_case=False)
+    model = AutoModel.from_pretrained(os.path.join(prefix , "vinai/bertweet-base"))
+    tokenizer = AutoTokenizer.from_pretrained(os.path.join(prefix , "vinai/bertweet-base"), do_lower_case=False)
+  elif language[-1] == "_":
+    
+    model = AutoModel.from_pretrained(os.path.join(prefix + "bert-base-multilingual-cased"))
+    tokenizer = AutoTokenizer.from_pretrained(os.path.join(prefix + "bert-base-multilingual-cased"), do_lower_case=False)
+    model.add_adapter(adapter_name='hate_adpt_{}'.format(language[:2].lower()), adapter_type=AdapterType.text_task)
+    model.train_adapter(['hate_adpt_{}'.format(language[:2].lower())])
+    model.set_active_adapters(['hate_adpt_{}'.format(language[:2].lower())])
+
 
   return model, tokenizer
 
@@ -108,7 +116,6 @@ class Encoder(torch.nn.Module):
     self.transformer, self.tokenizer = HuggTransformer(language, mode_weigth)
     self.intermediate = torch.nn.Sequential(torch.nn.Linear(in_features=768, out_features=self.interm_neurons), torch.nn.LeakyReLU())
     self.classifier = torch.nn.Linear(in_features=self.interm_neurons, out_features=2)
-
     self.loss_criterion = torch.nn.CrossEntropyLoss()
     self.device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
     self.to(device=self.device)
@@ -117,7 +124,10 @@ class Encoder(torch.nn.Module):
 
     ids = self.tokenizer(X, return_tensors='pt', truncation=True, padding=True, max_length=self.max_length).to(device=self.device)
 
-    X = self.transformer(**ids)[0]
+    if self.language[-1] == '_':
+      X = self.transformer(**ids, adapter_names=['hate_adpt_{}'.format(self.language[:2])])[0]
+    else: X = self.transformer(**ids)[0]
+
     if for_siamese == True:
       return X
     X = X[:,0]
@@ -134,8 +144,12 @@ class Encoder(torch.nn.Module):
     if os.path.exists('./logs') == False:
       os.system('mkdir logs')
     torch.save(self.state_dict(), os.path.join('logs', path))
+    self.transformer.save_all_adapters('logs')
 
   def makeOptimizer(self, lr=1e-5, decay=2e-5, multiplier=1, increase=0.1):
+
+    if self.language[-1] == '_':
+      return torch.optim.RMSprop(self.parameters(), lr, weight_decay=decay)
 
     params = []
     for l in self.transformer.encoder.layer:
@@ -153,7 +167,7 @@ class Encoder(torch.nn.Module):
 
     return torch.optim.RMSprop(params, lr=lr*multiplier, weight_decay=decay)
   
-  def predict(self, text, interm_layer_size, max_length, language, batch_size):
+  def predict(self, text, batch_size):
     self.eval()    
     save_temporal_data('to_encode.csv', text, True)
     devloader = DataLoader(RawDataset('to_encode.csv'), batch_size=batch_size, shuffle=False, num_workers=4, worker_init_fn=seed_worker)
@@ -176,7 +190,7 @@ class Encoder(torch.nn.Module):
     os.system('rm to_encode.csv')
     return np.argmax(out , axis = 1)
                    
-  def get_encodings(self, text, interm_layer_size, max_length, language, batch_size):
+  def get_encodings(self, text, batch_size):
 
     self.eval()    
     save_temporal_data('to_encode.csv', text, True)
@@ -226,7 +240,7 @@ def train_Encoder(text, target, language, mode_weigth, splits = 5, epoches = 4, 
       acc = 0
       
       model.train()
-
+      last_printed = ''
       for j, data in enumerate(trainloader, 0):
 
         torch.cuda.empty_cache()         
@@ -242,15 +256,16 @@ def train_Encoder(text, target, language, mode_weigth, splits = 5, epoches = 4, 
         # print statistics
         with torch.no_grad():
           if j == 0:
-            acc = ((torch.max(outputs, 1).indices == labels).sum()/len(labels)).cpu().numpy()
+            acc = ((1.0*(torch.max(outputs, 1).indices == labels)).sum()/len(labels)).cpu().numpy()
             running_loss = loss.item()
           else: 
-            acc = (acc + ((torch.max(outputs, 1).indices == labels).sum()/len(labels)).cpu().numpy())/2.0
+            acc = (acc + ((1.0*(torch.max(outputs, 1).indices == labels)).sum()/len(labels)).cpu().numpy())/2.0
             running_loss = (running_loss + loss.item())/2.0
 
         if (j+1)*100.0/batches - perc  >= 1 or j == batches-1:
           perc = (1+j)*100.0/batches
-          print('\r Epoch:{} step {} of {}. {}% loss: {}'.format(epoch+1, j+1, batches, np.round(perc, decimals=1), np.round(running_loss, decimals=3)), end="")
+          last_printed = '\rEpoch:{} step {} of {}. {}% loss: {}'.format(epoch+1, j+1, batches, np.round(perc, decimals=1), np.round(running_loss, decimals=3))
+          print(last_printed, end="")
       
       model.eval()
       history[-1]['loss'].append(running_loss)
@@ -270,21 +285,22 @@ def train_Encoder(text, target, language, mode_weigth, splits = 5, epoches = 4, 
             log = torch.cat((log, label), 0)
 
         dev_loss = model.loss_criterion(out, log).item()
-        dev_acc = ((torch.max(out, 1).indices == log).sum()/len(log)).cpu().numpy() 
+        dev_acc = ((1.0*(torch.max(out, 1).indices == log)).sum()/len(log)).cpu().numpy() 
         history[-1]['acc'].append(acc)
         history[-1]['dev_loss'].append(dev_loss)
         history[-1]['dev_acc'].append(dev_acc) 
 
       band = False
       if model.best_acc is None or model.best_acc < dev_acc:
-        model.save('bestmodelo_split_{}_{}.pt'.format(language, i+1))
+        model.save('bestmodelo_split_{}_{}.pt'.format(language[:2], i+1))
         model.best_acc = dev_acc
         band = True
 
-      print(" acc: {} ||| dev_loss: {} dev_acc: {}".format(np.round(acc, decimals=3), np.round(dev_loss, decimals=3), np.round(dev_acc.reshape(1, -1)[0], decimals=3)), end='')
+      ep_finish_print = " acc: {} ||| dev_loss: {} dev_acc: {}".format(np.round(acc, decimals=3), np.round(dev_loss, decimals=3), np.round(dev_acc.reshape(1, -1)[0], decimals=3))
+
       if band == True:
-        print('         *Weights Updated*')
-      else: print(' ')
+        print(bcolors.OKBLUE + bcolors.BOLD + last_printed + ep_finish_print + '\t[Weights Updated]' + bcolors.ENDC)
+      else: print(ep_finish_print)
 
       
     print('Training Finished Split: {}'. format(i+1))
@@ -394,7 +410,7 @@ class Aditive_Attention(torch.nn.Module):
   def forward(self, x):
 
     attention = self.aditive(x)
-    attention = torch.nn.functional.softmax(torch.squeeze(attention))
+    attention = torch.nn.functional.softmax(torch.squeeze(attention), dim=-1)
     attention = x*torch.unsqueeze(attention, -1)
     
     weighted_sum = torch.sum(attention, axis=1)
@@ -411,9 +427,9 @@ class Siamese_Metric(torch.nn.Module):
     self.interm_neurons = interm_size
     self.encoder = torch.nn.Sequential(Aditive_Attention(input=self.interm_neurons[0]), 
                    # torch.nn.Linear(in_features=self.interm_neurons[0], out_features=self.interm_neurons[1]),
-                    # torch.nn.BatchNorm1d(num_features=self.interm_neurons[0]), torch.nn.LeakyReLU(),1
-                    torch.nn.Linear(in_features=self.interm_neurons[0], out_features=self.interm_neurons[1]),
-                    torch.nn.LeakyReLU())
+                    torch.nn.BatchNorm1d(num_features=self.interm_neurons[0]), torch.nn.LeakyReLU(),
+                    torch.nn.Linear(in_features=self.interm_neurons[0], out_features=self.interm_neurons[1]))
+                    # torch.nn.LeakyReLU())
     self.lossc = loss
 
     if loss == 'contrastive':
@@ -423,11 +439,11 @@ class Siamese_Metric(torch.nn.Module):
     self.device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
     self.to(device=self.device)
 
-  def forward(self, A, X = None, Y = None, get_encoding = False):
+  def forward(self, A, X, get_encoding = False):
 
     # print(A.shape)
-    X1 = self.encoder(A.to(device=self.device))
-    X2 = self.encoder(X.to(device=self.device))
+    X1 = self.encoder((A + torch.randn_like(A)*1e-2).to(device=self.device))
+    X2 = self.encoder((X + torch.randn_like(X)*1e-2).to(device=self.device))
     
     return  torch.nn.functional.pairwise_distance(X1, X2)
 
@@ -441,20 +457,21 @@ class Siamese_Metric(torch.nn.Module):
     torch.save(self.state_dict(), os.path.join('logs', path))
  
 
-def train_Siamese(model, examples, language, mode = 'metriclearn', lossm = 'contrastive', splits = 5, epoches = 4, batch_size = 64, lr = 1e-3,  decay=2e-5):
+def train_Siamese(model, examples, devexamples, language, mode = 'metriclearn', lossm = 'contrastive', splits = 5, epoches = 4, batch_size = 64, lr = 1e-3,  decay=2e-5):
 
   history = {'loss': [], 'dev_loss': []}
   
   optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=decay)
   trainloader = DataLoader(SiameseData(examples), batch_size=batch_size, shuffle=True, num_workers=4, worker_init_fn=seed_worker)
-  devloader = DataLoader(SiameseData(examples), batch_size=batch_size, shuffle=True, num_workers=4, worker_init_fn=seed_worker)
+  devloader = DataLoader(SiameseData(devexamples), batch_size=batch_size, shuffle=True, num_workers=4, worker_init_fn=seed_worker)
   batches = len(trainloader)
+
+  last_printed = ''
   for epoch in range(epoches):
 
     running_loss = 0.0
     perc = 0
     model.train()
-
     for j, data in enumerate(trainloader, 0):
 
       torch.cuda.empty_cache()         
@@ -481,7 +498,8 @@ def train_Siamese(model, examples, language, mode = 'metriclearn', lossm = 'cont
 
       if (j+1)*100.0/batches - perc  >= 1 or j == batches-1:
         perc = (1+j)*100.0/batches
-        print('\r Epoch:{} step {} of {}. {}% loss: {}'.format(epoch+1, j+1, batches, np.round(perc, decimals=1), np.round(running_loss, decimals=3)), end="")
+        last_printed = '\rEpoch:{} step {} of {}. {}% loss: {}'.format(epoch+1, j+1, batches, np.round(perc, decimals=1), np.round(running_loss, decimals=3))
+        print(last_printed, end="")
     
     model.eval()
     history['loss'].append(running_loss)
@@ -522,11 +540,11 @@ def train_Siamese(model, examples, language, mode = 'metriclearn', lossm = 'cont
       model.save('{}_{}.pt'.format(mode, language))
       model.best_loss = dev_loss
       band = True
-
-    print("\t||| dev_loss: {}".format(np.round(dev_loss, decimals=3)), end = '')
+    
+    ep_finish_print = "\t||| dev_loss: {}".format(np.round(dev_loss, decimals=3))
     if band == True:
-      print('       *Weights Updated*')
-    else: print(' ')
+      print(bcolors.OKBLUE + bcolors.BOLD + last_printed + ep_finish_print + '\t[Weights Updated]' + bcolors.ENDC)
+    else: print(ep_finish_print)
 
   del trainloader
   del model

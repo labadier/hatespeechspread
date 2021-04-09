@@ -6,6 +6,7 @@ from torch.utils.data import Dataset, DataLoader
 import numpy as np
 from sklearn.metrics.pairwise import euclidean_distances, cosine_similarity
 from sklearn.model_selection import StratifiedKFold
+from utils import bcolors
 
 distance = ['eucliean', 'deepmetric']
 similarity = ['cosine']
@@ -46,6 +47,7 @@ def predict_example(spreader, no_spreader, u, checkp=0.25, method='euclidean'):
 
 def K_Impostor(spreader, no_spreader, unk, checkp=0.25, method='euclidean', model=None):
 
+    model.eval()
     if method == 'deepmetric':
         metric['deepmetric'] = lambda x, y : model.forward(torch.unsqueeze(torch.tensor(x), 0), torch.unsqueeze(torch.tensor(y), 0))
 
@@ -55,7 +57,7 @@ def K_Impostor(spreader, no_spreader, unk, checkp=0.25, method='euclidean', mode
         ansn = predict_example(no_spreader, spreader, u, checkp, method)
         # print(ansp, ansn)
         Y[i] = (ansp >= ansn)
-    # print(Y)
+    
     return Y
 
 class FNNData(Dataset):
@@ -87,10 +89,10 @@ class FNN_Classifier(torch.nn.Module):
         self.language = language
         self.interm_neurons = interm_size
         self.encoder = torch.nn.Sequential(Aditive_Attention(input=self.interm_neurons[0]), 
-                    torch.nn.Linear(in_features=self.interm_neurons[0], out_features=self.interm_neurons[1]),
-                    torch.nn.BatchNorm1d(num_features=self.interm_neurons[1]), torch.nn.LeakyReLU(),
-                    torch.nn.Dropout(p=0.2),
-                    torch.nn.Linear(in_features=self.interm_neurons[1], out_features=2))
+                    torch.nn.Linear(in_features=self.interm_neurons[0], out_features=32),
+                    torch.nn.BatchNorm1d(num_features=32), torch.nn.LeakyReLU(),
+                    torch.nn.Dropout(p=0.3),
+                    torch.nn.Linear(in_features=32, out_features=2))
         self.loss_criterion = torch.nn.CrossEntropyLoss() 
 
         self.device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
@@ -115,6 +117,7 @@ def trainfcnn(task_data, language, splits = 5, epoches = 4, batch_size = 64, int
 
     history = []
     overall_acc = 0
+    last_printed = None
     for i, (train_index, test_index) in enumerate(skf.split(np.zeros_like(task_data[1]), task_data[1])):  
 
         history.append({'loss': [], 'acc':[], 'dev_loss': [], 'dev_acc': []})
@@ -132,7 +135,7 @@ def trainfcnn(task_data, language, splits = 5, epoches = 4, batch_size = 64, int
             acc = 0
 
             model.train()
-
+            
             for j, data in enumerate(trainloader, 0):
 
                 torch.cuda.empty_cache()         
@@ -148,15 +151,16 @@ def trainfcnn(task_data, language, splits = 5, epoches = 4, batch_size = 64, int
                 # print statistics
                 with torch.no_grad():
                     if j == 0:
-                        acc = ((torch.max(outputs, 1).indices == labels).sum()/len(labels)).cpu().numpy()
+                        acc = ((1.0*(torch.max(outputs, 1).indices == labels)).sum()/len(labels)).cpu().numpy()
                         running_loss = loss.item()
                     else: 
-                        acc = (acc + ((torch.max(outputs, 1).indices == labels).sum()/len(labels)).cpu().numpy())/2.0
+                        acc = (acc + ((1.0*(torch.max(outputs, 1).indices == labels)).sum()/len(labels)).cpu().numpy())/2.0
                         running_loss = (running_loss + loss.item())/2.0
 
                 if (j+1)*100.0/batches - perc  >= 1 or j == batches-1:
                     perc = (1+j)*100.0/batches
-                    print('\r Epoch:{} step {} of {}. {}% loss: {}'.format(epoch+1, j+1, batches, np.round(perc, decimals=1), np.round(running_loss, decimals=3)), end="")
+                    last_printed = '\rEpoch:{} step {} of {}. {}% loss: {}'.format(epoch+1, j+1, batches, np.round(perc, decimals=1), np.round(running_loss, decimals=3))
+                    print(last_printed, end="")
 
             model.eval()
             history[-1]['loss'].append(running_loss)
@@ -176,7 +180,7 @@ def trainfcnn(task_data, language, splits = 5, epoches = 4, batch_size = 64, int
                         log = torch.cat((log, label), 0)
 
                 dev_loss = model.loss_criterion(out, log).item()
-                dev_acc = ((torch.max(out, 1).indices == log).sum()/len(log)).cpu().numpy()
+                dev_acc = ((1.0*(torch.max(out, 1).indices == log)).sum()/len(log)).cpu().numpy()
                 history[-1]['acc'].append(acc)
                 history[-1]['dev_loss'].append(dev_loss)
                 history[-1]['dev_acc'].append(dev_acc) 
@@ -186,18 +190,19 @@ def trainfcnn(task_data, language, splits = 5, epoches = 4, batch_size = 64, int
                     model.save('classifier_{}_{}.pt'.format(language, i+1))
                     model.best_acc = dev_acc
                     band = True
+                
+                ep_finish_print = " acc: {} ||| dev_loss: {} dev_acc: {}".format(np.round(acc, decimals=3), np.round(dev_loss, decimals=3), np.round(dev_acc.reshape(1, -1)[0], decimals=3))
 
-                print(" acc: {} ||| dev_loss: {} dev_acc: {}".format(np.round(acc, decimals=3), np.round(dev_loss, decimals=3), np.round(dev_acc.reshape(1, -1)[0], decimals=3)), end = '')
                 if band == True:
-                    print('         *Weights Updated*')
-                else: print(' ')
-
+                    print(bcolors.OKBLUE + bcolors.BOLD + last_printed + ep_finish_print + '\t[Weights Updated]' + bcolors.ENDC)
+                else: print(ep_finish_print)
+                        
         overall_acc += model.best_acc
         print('Training Finished Split: {}'. format(i+1))
         del trainloader
         del model
         del devloader
-    print(50*'*','\nOveral Accuracy: {}\n'.format(overall_acc/splits), 50*'*')
+    print(f"{bcolors.OKGREEN}{bcolors.BOLD}{50*'*'}\nOveral Accuracy: {overall_acc/splits}\n{50*'*'}{bcolors.ENDC}")
     return history
 
 def predictfnn(encodings, idx, language, output, splits, batch_size, save_predictions):
