@@ -121,10 +121,9 @@ def make_triplets( authors, kexamples, dimesion ):
     tidx = shuffle[:int(kexamples*0.8)]
     didx = shuffle[int(kexamples*0.8):]
 
-    train = [anchor[tidx], positive[tidx], negative[tidx]]
-    test = [anchor[didx], positive[didx], negative[didx]]
+    train = [anchor[tidx].astype(np.float32), positive[tidx].astype(np.float32), negative[tidx].astype(np.float32)]
+    test = [anchor[didx].astype(np.float32), positive[didx].astype(np.float32), negative[didx].astype(np.float32)]
     return train, test
-    # triplets[].astype(np.float32), triplets[shuffle[int(len(triplets)*0.8):]].astype(np.float32)
 
 def make_pairs( authors, example, dimesion ):
 

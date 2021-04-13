@@ -46,8 +46,10 @@ def predict_example(spreader, no_spreader, u, checkp=0.25, method='euclidean'):
 
 
 def K_Impostor(spreader, no_spreader, unk, checkp=0.25, method='euclidean', model=None):
+    
+    if model is not None:
+        model.eval()
 
-    model.eval()
     if method == 'deepmetric':
         metric['deepmetric'] = lambda x, y : model.forward(torch.unsqueeze(torch.tensor(x), 0), torch.unsqueeze(torch.tensor(y), 0))
 
@@ -89,6 +91,7 @@ class FNN_Classifier(torch.nn.Module):
         self.language = language
         self.interm_neurons = interm_size
         self.encoder = torch.nn.Sequential(Aditive_Attention(input=self.interm_neurons[0]), 
+                    # torch.nn.BatchNorm1d(num_features=self.interm_neurons[0]), torch.nn.LeakyReLU(),
                     torch.nn.Linear(in_features=self.interm_neurons[0], out_features=32),
                     torch.nn.BatchNorm1d(num_features=32), torch.nn.LeakyReLU(),
                     torch.nn.Dropout(p=0.3),

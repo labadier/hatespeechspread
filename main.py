@@ -83,15 +83,20 @@ if __name__ == '__main__':
       print( f"{bcolors.FAIL}{bcolors.BOLD}ERROR: Weight path set unproperly{bcolors.ENDC}")
       exit(1)
 
-    
     model = Encoder(interm_layer_size, max_length, language, mode_weigth)
     model.load(weight_path)
     if language[-1] == '_':
       model.transformer.load_adapter("logs/hate_adpt_{}".format(language[:2].lower()))
     
     tweets, _ = load_data_PAN(os.path.join(data_path, language[:2].lower()), False)
-    out = [model.get_encodings(i, batch_size) for i in tweets]
-    torch.save(np.array(out), 'logs/{}_Encodings_{}.pt'.format(phase, language[:2]))
+    preds = []
+    encs = []
+    for i in tweets:
+      e, l = model.get_encodings(i, batch_size)
+      encs.append(e)
+      preds.append(l)
+    torch.save(np.array(encs), 'logs/{}_Encodings_{}.pt'.format(phase, language[:2]))
+    torch.save(np.array(preds), 'logs/{}_pred_{}.pt'.format(phase, language[:2]))
     print(f"{bcolors.OKCYAN}{bcolors.BOLD}Encodings Saved Successfully{bcolors.ENDC}")
 
   if mode == 'tSiamese':
@@ -108,15 +113,17 @@ if __name__ == '__main__':
     history = train_Siamese(model, train, dev, mode='siamese_encoder', language=language, lossm=loss, splits=splits, epoches=epoches, batch_size=batch_size, lr = learning_rate,  decay=2e-5)
     plot_training(history, language + '_Siamese')
     
-    print('Training Finish!')
+    print(f"{bcolors.OKCYAN}{bcolors.BOLD}Training Finish{bcolors.ENDC}")
 
   if mode == 'eSiamese':
 
     '''
       Get each author's message encoding from the Verification Siamese.
     '''
-    if weight_path is None:
-      print('!!No weigth path set')
+    weight_path = os.path.join(weight_path, 'siamese_encoder_{}_.pt'.format(language[:2]))
+    
+    if os.path.isfile(weight_path) == False:
+      print( f"{bcolors.FAIL}{bcolors.BOLD}ERROR: Weight path set unproperly{bcolors.ENDC}")
       exit(1)
 
     model = Siamese_Encoder([64, 32], language)
@@ -125,7 +132,7 @@ if __name__ == '__main__':
     out = [model.get_encodings(i, batch_size) for i in authors.astype(np.float32)]
 
     torch.save(np.array(out), 'logs/{}_Encodingst_{}.pt'.format(phase, language))
-    print('Encodings Saved!')
+    print(f"{bcolors.OKCYAN}{bcolors.BOLD}Encodings Saved Successfully{bcolors.ENDC}")
 
   if mode == 'metriclearn':
     '''
@@ -157,14 +164,14 @@ if __name__ == '__main__':
       model = Siamese_Metric([64, 32], language=language, loss=loss)
       model.load(os.path.join('logs', 'metriclearn_{}.pt'.format(language)))
       encodings = torch.load('logs/train_Encodings_{}.pt'.format(language))
-      encodings_test = torch.load('logs/test_Encodings_{}.pt'.format(language))
+      # encodings_test = torch.load('logs/test_Encodings_{}.pt'.format(language))
       
     else:
       enc_name = 'Encodings' if ecnImp == 'transformer' else 'Encodingst'
       encodings = torch.load('logs/train_{}_{}.pt'.format(enc_name, language))
       encodings = np.mean(encodings, axis=1)
-      encodings_test = torch.load('logs/test_{}_{}.pt'.format(enc_name, language))
-      encodings_test = np.mean(encodings_test, axis=1)
+      # encodings_test = torch.load('logs/test_{}_{}.pt'.format(enc_name, language))
+      # encodings_test = np.mean(encodings_test, axis=1)
       
     skf = StratifiedKFold(n_splits=splits, shuffle=True, random_state = 23)   
     overl_acc = 0

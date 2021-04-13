@@ -120,7 +120,7 @@ class Encoder(torch.nn.Module):
     self.device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
     self.to(device=self.device)
 
-  def forward(self, X, get_encoding=False, for_siamese=False):
+  def forward(self, X, get_encoding=False):
 
     ids = self.tokenizer(X, return_tensors='pt', truncation=True, padding=True, max_length=self.max_length).to(device=self.device)
 
@@ -128,12 +128,11 @@ class Encoder(torch.nn.Module):
       X = self.transformer(**ids, adapter_names=['hate_adpt_{}'.format(self.language[:2])])[0]
     else: X = self.transformer(**ids)[0]
 
-    if for_siamese == True:
-      return X
     X = X[:,0]
-    output = self.intermediate(X)
-    if get_encoding == False:
-      output = self.classifier(output)
+    enc = self.intermediate(X)
+    output = self.classifier(enc)
+    if get_encoding == True:
+      return enc, output
 
     return output 
 
@@ -166,36 +165,13 @@ class Encoder(torch.nn.Module):
     params.append({'params':self.classifier.parameters(), 'lr':lr*multiplier})
 
     return torch.optim.RMSprop(params, lr=lr*multiplier, weight_decay=decay)
-  
-  def predict(self, text, batch_size):
-    self.eval()    
-    save_temporal_data('to_encode.csv', text, True)
-    devloader = DataLoader(RawDataset('to_encode.csv'), batch_size=batch_size, shuffle=False, num_workers=4, worker_init_fn=seed_worker)
-
-    with torch.no_grad():
-      out = None
-      log = None
-      for k, data in enumerate(devloader, 0):
-        torch.cuda.empty_cache() 
-        inputs = data['text']
-
-        dev_out = self.forward(inputs)
-        if k == 0:
-          out = dev_out
-        else: 
-          out = torch.cat((out, dev_out), 0)
-
-    out = out.cpu().numpy()
-    del devloader
-    os.system('rm to_encode.csv')
-    return np.argmax(out , axis = 1)
                    
   def get_encodings(self, text, batch_size):
 
     self.eval()    
     save_temporal_data('to_encode.csv', text, True)
     devloader = DataLoader(RawDataset('to_encode.csv'), batch_size=batch_size, shuffle=False, num_workers=4, worker_init_fn=seed_worker)
-
+ 
     with torch.no_grad():
       out = None
       log = None
@@ -203,16 +179,19 @@ class Encoder(torch.nn.Module):
         torch.cuda.empty_cache() 
         inputs = data['text']
 
-        dev_out = self.forward(inputs, True)
+        dev_out, dev_log = self.forward(inputs, True)
         if k == 0:
           out = dev_out
+          log = dev_log
         else: 
           out = torch.cat((out, dev_out), 0)
+          log = torch.cat((log, dev_log), 0)
 
     out = out.cpu().numpy()
+    log = torch.max(log, 1).indices.cpu().numpy() 
     del devloader
     os.system('rm to_encode.csv')
-    return out   
+    return out, log
 
 def train_Encoder(text, target, language, mode_weigth, splits = 5, epoches = 4, batch_size = 64, max_length = 120, interm_layer_size = 64, lr = 1e-5,  decay=2e-5, multiplier=1, increase=0.1):
 
@@ -442,9 +421,15 @@ class Siamese_Metric(torch.nn.Module):
   def forward(self, A, X, get_encoding = False):
 
     # print(A.shape)
-    X1 = self.encoder((A + torch.randn_like(A)*1e-2).to(device=self.device))
-    X2 = self.encoder((X + torch.randn_like(X)*1e-2).to(device=self.device))
-    
+    if self.training: 
+      X1 = self.encoder((A + torch.randn_like(A)*1e-3).to(device=self.device))
+      X2 = self.encoder((X + torch.randn_like(X)*1e-3).to(device=self.device))
+      print('cecece')
+    else:
+      X1 = self.encoder(A.to(device=self.device))
+      X2 = self.encoder(X.to(device=self.device))
+
+      
     return  torch.nn.functional.pairwise_distance(X1, X2)
 
 
