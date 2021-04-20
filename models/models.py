@@ -1,14 +1,11 @@
-import torch, os
+import torch, os, sys
+sys.path.append('../')
 import numpy as np, pandas as pd
-from transformers import AutoTokenizer, AutoModel, AdapterType
+from transformers import AutoTokenizer, AutoModel
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import StratifiedKFold
 import random
 from utils import bcolors
-
-torch.manual_seed(0)
-random.seed(0)
-np.random.seed(0)
 
 
 def HuggTransformer(language, mode_weigth):
@@ -107,6 +104,9 @@ class Encoder(torch.nn.Module):
 
   def __init__(self, interm_size=64, max_length=120, language='EN', mode_weigth='online'):
 
+    if language[-1] == '_':
+      from transformers import AdapterType
+
     super(Encoder, self).__init__()
 		
     self.best_acc = None
@@ -143,7 +143,8 @@ class Encoder(torch.nn.Module):
     if os.path.exists('./logs') == False:
       os.system('mkdir logs')
     torch.save(self.state_dict(), os.path.join('logs', path))
-    self.transformer.save_all_adapters('logs')
+    if self.language[-1] == '_':
+      self.transformer.save_all_adapters('logs')
 
   def makeOptimizer(self, lr=1e-5, decay=2e-5, multiplier=1, increase=0.1):
 
@@ -405,9 +406,9 @@ class Siamese_Metric(torch.nn.Module):
     self.language = language
     self.interm_neurons = interm_size
     self.encoder = torch.nn.Sequential(Aditive_Attention(input=self.interm_neurons[0]), 
-                   # torch.nn.Linear(in_features=self.interm_neurons[0], out_features=self.interm_neurons[1]),
-                    torch.nn.BatchNorm1d(num_features=self.interm_neurons[0]), torch.nn.LeakyReLU(),
-                    torch.nn.Linear(in_features=self.interm_neurons[0], out_features=self.interm_neurons[1]))
+                   torch.nn.Linear(in_features=self.interm_neurons[0], out_features=self.interm_neurons[1]),
+                    torch.nn.BatchNorm1d(num_features=self.interm_neurons[1]), torch.nn.LeakyReLU(),
+                    torch.nn.Linear(in_features=self.interm_neurons[1], out_features=self.interm_neurons[1]))
                     # torch.nn.LeakyReLU())
     self.lossc = loss
 
@@ -424,7 +425,6 @@ class Siamese_Metric(torch.nn.Module):
     if self.training: 
       X1 = self.encoder((A + torch.randn_like(A)*1e-3).to(device=self.device))
       X2 = self.encoder((X + torch.randn_like(X)*1e-3).to(device=self.device))
-      print('cecece')
     else:
       X1 = self.encoder(A.to(device=self.device))
       X2 = self.encoder(X.to(device=self.device))

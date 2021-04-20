@@ -2,6 +2,9 @@ from matplotlib import pyplot as plt
 import pandas as pd, numpy as np, glob
 import xml.etree.ElementTree as XT
 import torch, os
+from fcmeans import FCM
+from sklearn.metrics.pairwise import euclidean_distances
+from sklearn.manifold import TSNE
 
 class bcolors:
     HEADER = '\033[95m'
@@ -158,6 +161,84 @@ def make_pairs( authors, example, dimesion ):
     return train, dev_pairs 
 
 
+def make_pairs_with_protos(P_Set, N_Set, authors, labels):
+
+    unlp = np.array([i for i in range(len(authors)) if i not in P_Set and i not in N_Set and labels[i]==1])
+    unln = np.array([i for i in range(len(authors)) if i not in P_Set and i not in N_Set and labels[i]==0])
+
+    print(len(list(set(P_Set)| set(N_Set))), len(unlp), len(unln))
+    anchor = []
+    unk = []
+    label =[]
+    dev_anchor =[]
+    dev_unk = []
+    dev_label =[]
+    #hate
+    top = int(len(unlp)*0.9)
+
+    pairs = 15
+    for i in unlp[:top]:
+        posit = list(np.random.permutation(len(P_Set))[:pairs])
+        anchor += posit
+        label += [1]*pairs
+        unk += [i]*pairs
+
+        negat = list(np.random.permutation(len(N_Set))[:pairs])
+        anchor += negat
+        label += [0]*pairs
+        unk += [i]*pairs
+
+    for i in unlp[top:]:
+        posit = list(np.random.permutation(len(P_Set))[:3])
+        dev_anchor += posit
+        dev_label += [1]*3
+        dev_unk += [i]*3
+
+        negat = list(np.random.permutation(len(N_Set))[:3])
+        dev_anchor += negat
+        dev_label += [0]*3
+        dev_unk += [i]*3
+
+    top = int(len(unln)*0.9)
+    for i in unln[:top]:
+        posit = list(np.random.permutation(len(N_Set))[:pairs])
+        anchor += posit
+        label += [1]*pairs
+        unk += [i]*pairs
+
+        negat = list(np.random.permutation(len(P_Set))[:pairs])
+        anchor += negat
+        label += [0]*pairs
+        unk += [i]*pairs
+
+    for i in unln[top:]:
+        posit = list(np.random.permutation(len(N_Set))[:3])
+        dev_anchor += posit
+        dev_label += [1]*3
+        dev_unk += [i]*3
+
+        negat = list(np.random.permutation(len(P_Set))[:3])
+        dev_anchor += negat
+        dev_label += [0]*3
+        dev_unk += [i]*3
+
+    anchor = authors[anchor]
+    unk = authors[unk]
+    dev_anchor = authors[dev_anchor]
+    dev_unk = authors[dev_unk]
+
+    perm = np.random.permutation(len(anchor))
+    anchor = anchor[perm]
+    unk = unk[perm]
+    label = np.array(label)[perm]
+    perm = np.random.permutation(len(dev_anchor))
+    dev_anchor = dev_anchor[perm]
+    dev_unk = dev_unk[perm]
+    dev_label = np.array(dev_label)[perm]
+    train = [anchor, unk, label]
+    test = [dev_anchor, dev_unk, dev_label]
+    return train, test
+
 def make_profile_pairs( authors, labels, example, scale = 0.001 ):
     
     pares = len(authors)*example
@@ -218,3 +299,105 @@ def save_predictions(idx, y_hat, language, path):
     for i in range(len(idx)):
         with open(os.path.join(path, idx[i] + '.xml'), 'w') as file:
             file.write('<author id=\"{}\"\n\tlang=\"{}\"\n\ttype=\"{}\"\n/>'.format(idx[i], language, y_hat[i]))
+
+def compute_centers_PSC(language, labels, num_protos=10):
+
+    encoding = torch.load(f'logs/train_Encodings_{language}.pt')
+    hate_usage = torch.load(f'logs/train_pred_{language}.pt')
+
+    points = np.zeros((encoding.shape[0], encoding.shape[-1]))
+    for i in range(len(points)):
+        well = 0
+        for j in range(encoding.shape[1]):
+            # if hate_usage[i][j] == labels[i]:
+            points[i] += encoding[i][j]
+            well += 1.0
+        points[i] /= well
+        
+
+    fcm = FCM(n_clusters=num_protos)
+    fcm.fit(points)
+    fcm_labels = fcm.predict(points)
+
+    #%%
+    # plot result
+    # plt.scatter(X[:,0], X[:,1], c=fcm_labels, alpha=.1)
+    colors = ['b', 'g', 'r', 'y', 'c', 'b', 'g', 'r', 'y', 'c']
+    protos = []
+    for i in range(num_protos):
+        idx = list(np.where(fcm_labels==i)[0].reshape(-1))
+        
+        homogeneus = True
+        for j in idx:
+            if labels[j] != labels[idx[0]]:
+                homogeneus = False
+                break
+
+        if homogeneus == True:
+
+            midle = points[idx].sum(axis=0)/len(idx)
+            protos.append(idx[0])
+            closeness = None
+            for j in range(len(idx)):
+                
+                d = euclidean_distances(midle.reshape(1, points.shape[1]), points[idx[j]].reshape(1, points.shape[1]))
+                if closeness == None or closeness > d:
+                    closeness = d
+                    protos[-1] = idx[j]
+        else:
+
+            Major_class = 0
+            if labels[idx[i]].sum() > len(idx)/2:
+                Major_class = 1
+
+            for j in range(len(idx)):
+                if labels[idx[j]] == Major_class:
+                    new_p = None
+                    closeness = None
+                    for k in range(len(idx)):
+                        if labels[idx[k]] != Major_class:
+                            d = euclidean_distances(points[idx[j]].reshape(1, points.shape[1]), points[idx[k]].reshape(1, points.shape[1]))
+                            if closeness == None or closeness > d:
+                                closeness = d
+                                new_p = idx[k]
+                    protos.append(new_p)
+                    new_p = None
+                    closeness = None
+                    for k in range(len(idx)):
+                        if labels[idx[k]] == Major_class:
+                            d = euclidean_distances(points[protos[-1]].reshape(1, points.shape[1]), points[idx[k]].reshape(1, points.shape[1]))
+                            if closeness == None or closeness > d:
+                                closeness = d
+                                new_p = idx[k]
+                    protos.append(new_p)
+
+    protos = list(set(protos))
+    print(f'{bcolors.UNDERLINE}{bcolors.BOLD}Computed prototypes:\t{len(protos)}{bcolors.ENDC}')
+    P_set = []
+    N_set = []
+
+    for i in protos:
+        if labels[i] == 1:
+            P_set.append(i)
+        else: N_set.append(i)
+    #%%
+    P_idx = list(np.argwhere(labels==1).reshape(-1))
+    N_idx = list(np.argwhere(labels==0).reshape(-1))
+
+    Z = TSNE(n_components=2).fit_transform(points)
+
+    P = Z[P_idx]
+    N = Z[N_idx]
+    C = Z[P_set]
+    F = Z[N_set]
+
+    colors = ['b', 'g', 'r', 'y', 'w']
+    plt.scatter(P[:,0], P[:,1], c = 'c', label = 'Pos', alpha=.5)
+    plt.scatter(N[:,0], N[:,1], c = 'r', label = 'Neg',alpha=.3)
+    plt.scatter(C[:,0], C[:,1], c = '0', label = 'Proto_Pos',alpha=.7)
+    plt.scatter(F[:,0], F[:,1], c = '#723a91', label = 'Proto_Neg',alpha=.7)
+    plt.legend(loc=1)
+    plt.savefig(f'logs/protos_{language}.png')
+    plt.close()
+
+    return P_set, N_set

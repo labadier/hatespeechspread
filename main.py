@@ -1,14 +1,19 @@
 #%%
-import argparse, sys, os, numpy as np, torch
+import argparse, sys, os, numpy as np, torch, random
 from models.models import Encoder, train_Encoder, train_Siamese, Siamese_Encoder, Siamese_Metric
+from models.CGNN import train_GCNN, GCN
 from utils import plot_training, load_data, load_data_PAN, make_pairs
 from utils import make_triplets, load_irony, make_profile_pairs, save_predictions
+from utils import make_pairs_with_protos, compute_centers_PSC
 from sklearn.metrics import f1_score
 from models.classifiers import K_Impostor, trainfcnn, predictfnn
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import classification_report, accuracy_score
 from utils import bcolors
 
+torch.manual_seed(0)
+random.seed(0)
+np.random.seed(0)
 
 def check_params(args=None):
   parser = argparse.ArgumentParser(description='Language Model Encoder')
@@ -140,15 +145,17 @@ if __name__ == '__main__':
     '''
     _, _, labels = load_data_PAN(os.path.join(data_path, language.lower()), labeled=True)
     authors = torch.load('logs/train_Encodings_{}.pt'.format(language))
+    P_Set, N_Set = compute_centers_PSC(language, labels, 7)
+    train, dev = make_pairs_with_protos(P_Set, N_Set, authors, labels)
+    # train, dev = make_profile_pairs( authors, labels, 15, 64 )
 
-    if loss == 'contrastive':
-      train, dev = make_profile_pairs( authors, labels, 15, 64 )
-
-    model = Siamese_Metric([64, 32], language=language, loss=loss)
+    model = Siamese_Metric([interm_layer_size, 32], language=language, loss=loss)
     history = train_Siamese(model, train, dev, mode = 'metriclearn', language=language, lossm=loss, splits=splits, epoches=epoches, batch_size=batch_size, lr = learning_rate,  decay=decay)
     plot_training(history, language + '_MetricL')
-    
-    print('Metric Learning Finish!')
+    np.save(f'logs/PostitivePrototypeIndexes_{language}', P_Set)
+    np.save(f'logs/NegativePrototypeIndexes_{language}', N_Set)
+    print(f"{bcolors.OKCYAN}{bcolors.BOLD}Metric Learning Finish{bcolors.ENDC}")
+
 
   if mode == 'tImpostor':
 
@@ -158,10 +165,12 @@ if __name__ == '__main__':
 
     tweets, _, labels = load_data_PAN(os.path.join(data_path, language.lower()), labeled=True)
     tweets_test, idx  = load_data_PAN(os.path.join(test_path, language.lower()), labeled=False)
+    P_Set = list(np.load(f'logs/PostitivePrototypeIndexes_{language}.npy'))
+    N_Set = list(np.load(f'logs/NegativePrototypeIndexes_{language}.npy'))
 
     model = None
     if metric == 'deepmetric':
-      model = Siamese_Metric([64, 32], language=language, loss=loss)
+      model = Siamese_Metric([interm_layer_size, 32], language=language, loss=loss)
       model.load(os.path.join('logs', 'metriclearn_{}.pt'.format(language)))
       encodings = torch.load('logs/train_Encodings_{}.pt'.format(language))
       # encodings_test = torch.load('logs/test_Encodings_{}.pt'.format(language))
@@ -185,13 +194,13 @@ if __name__ == '__main__':
     for i, (train_index, test_index) in enumerate(skf.split(encodings, labels)):
       unk = encodings[test_index]
       unk_labels = labels[test_index]  
-      known = encodings[train_index]
-      known_labels = labels[train_index]
+      # known = encodings[train_index]
+      # known_labels = labels[train_index]
 
-      P_idx = list(np.argwhere(known_labels==1).reshape(-1))
-      N_idx = list(np.argwhere(known_labels==0).reshape(-1))
+      # P_idx = list(np.argwhere(known_labels==1).reshape(-1))
+      # N_idx = list(np.argwhere(known_labels==0).reshape(-1))
       
-      y_hat = K_Impostor(known[P_idx], known[N_idx], unk, checkp=coef, method=metric, model=model)
+      y_hat = K_Impostor(encodings[P_Set], encodings[N_Set], unk, checkp=coef, method=metric, model=model)
       # Y_Test += K_Impostor(encodings[P_idx], encodings[N_idx], encodings_test, checkp=coef, method=metric, model=model)
 
       metrics = classification_report(unk_labels, y_hat, target_names=['No Hate', 'Hate'],  digits=4, zero_division=1)
@@ -229,6 +238,15 @@ if __name__ == '__main__':
 
     exit(0)
 
+  if mode == 'tcgnn':
+    '''
+      Train Train Graph Concolutional Neural Network
+    ''' 
+    if phase == 'train':
 
+      _, _, labels = load_data_PAN(os.path.join(data_path, language.lower()), labeled=True)
+      encodings = torch.load('logs/train_Encodings_{}.pt'.format(language))
 
-# %%
+      history = train_GCNN(encodings, labels, language, splits = splits, epoches = epoches, batch_size = batch_size, hidden_channels = interm_layer_size, lr=learning_rate, decay=decay)
+      plot_training(history[-1], language + '_cgnn', 'acc')
+    

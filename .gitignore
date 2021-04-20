@@ -11,3 +11,4 @@ tmp*
 logs
 .python-version
 tira.sh 
+*.npy
