@@ -1,7 +1,7 @@
 #%%
 import argparse, sys, os, numpy as np, torch, random
 from models.models import Encoder, train_Encoder, train_Siamese, Siamese_Encoder, Siamese_Metric
-from models.CGNN import train_GCNN, GCN
+from models.CGNN import train_GCNN, GCN, predicgcn
 from utils import plot_training, load_data, load_data_PAN, make_pairs
 from utils import make_triplets, load_irony, make_profile_pairs, save_predictions
 from utils import make_pairs_with_protos, compute_centers_PSC
@@ -38,6 +38,7 @@ def check_params(args=None):
   parser.add_argument('-metric', metavar='mtricImp', help='Metric to compare on Impostor Method', default='cosine', choices=['cosine', 'euclidean', 'deepmetric'] )
   parser.add_argument('-ecnImp', metavar='EncodertoImp', help='Encoder to use on Importor either Siamese or Transformer', default='transformer', choices=['transformer', 'siamese'] )
   parser.add_argument('-dt', metavar='data_test', help='Get Data for test')
+  parser.add_argument('-up', metavar='data_test', help='Using Prototipes for Impostor or compare to random examples', default="prototipical", choices=["prototipical", "random"])
   return parser.parse_args(args)
 
 if __name__ == '__main__':
@@ -64,6 +65,7 @@ if __name__ == '__main__':
   test_path = parameters.dt
   phase = parameters.phase
   output = parameters.output
+  up = parameters.up
 
   if mode == 'tEncoder':
 
@@ -145,7 +147,7 @@ if __name__ == '__main__':
     '''
     _, _, labels = load_data_PAN(os.path.join(data_path, language.lower()), labeled=True)
     authors = torch.load('logs/train_Encodings_{}.pt'.format(language))
-    P_Set, N_Set = compute_centers_PSC(language, labels, 7)
+    P_Set, N_Set = compute_centers_PSC(language, labels, num_protos=10)
     train, dev = make_pairs_with_protos(P_Set, N_Set, authors, labels)
     # train, dev = make_profile_pairs( authors, labels, 15, 64 )
 
@@ -173,14 +175,13 @@ if __name__ == '__main__':
       model = Siamese_Metric([interm_layer_size, 32], language=language, loss=loss)
       model.load(os.path.join('logs', 'metriclearn_{}.pt'.format(language)))
       encodings = torch.load('logs/train_Encodings_{}.pt'.format(language))
-      # encodings_test = torch.load('logs/test_Encodings_{}.pt'.format(language))
-      
+      encodings_test = torch.load('logs/test_Encodings_{}.pt'.format(language))
     else:
       enc_name = 'Encodings' if ecnImp == 'transformer' else 'Encodingst'
       encodings = torch.load('logs/train_{}_{}.pt'.format(enc_name, language))
       encodings = np.mean(encodings, axis=1)
-      # encodings_test = torch.load('logs/test_{}_{}.pt'.format(enc_name, language))
-      # encodings_test = np.mean(encodings_test, axis=1)
+      encodings_test = torch.load('logs/test_{}_{}.pt'.format(enc_name, language))
+      encodings_test = np.mean(encodings_test, axis=1)
       
     skf = StratifiedKFold(n_splits=splits, shuffle=True, random_state = 23)   
     overl_acc = 0
@@ -193,16 +194,21 @@ if __name__ == '__main__':
     Y_Test = np.zeros((len(tweets_test),))
     for i, (train_index, test_index) in enumerate(skf.split(encodings, labels)):
       unk = encodings[test_index]
-      unk_labels = labels[test_index]  
-      # known = encodings[train_index]
-      # known_labels = labels[train_index]
+      unk_labels = labels[test_index] 
 
-      # P_idx = list(np.argwhere(known_labels==1).reshape(-1))
-      # N_idx = list(np.argwhere(known_labels==0).reshape(-1))
+      if up == "prototipical":
+        y_hat = K_Impostor(encodings[P_Set], encodings[N_Set], unk, checkp=coef, method=metric, model=model)
+        Y_Test += K_Impostor(encodings[P_Set], encodings[N_Set], encodings_test, checkp=coef, method=metric, model=model)
+      else:
+        known = encodings[train_index]
+        known_labels = labels[train_index]
+
+        P_idx = list(np.argwhere(known_labels==1).reshape(-1))
+        N_idx = list(np.argwhere(known_labels==0).reshape(-1))
+
+        y_hat = K_Impostor(encodings[P_idx], encodings[N_idx], unk, checkp=coef, method=metric, model=model)
+        Y_Test += K_Impostor(encodings[P_idx], encodings[N_idx], encodings_test, checkp=coef, method=metric, model=model)
       
-      y_hat = K_Impostor(encodings[P_Set], encodings[N_Set], unk, checkp=coef, method=metric, model=model)
-      # Y_Test += K_Impostor(encodings[P_idx], encodings[N_idx], encodings_test, checkp=coef, method=metric, model=model)
-
       metrics = classification_report(unk_labels, y_hat, target_names=['No Hate', 'Hate'],  digits=4, zero_division=1)
       acc = accuracy_score(unk_labels, y_hat)
       overl_acc += acc
@@ -213,7 +219,7 @@ if __name__ == '__main__':
     print('Accuracy {}: {}'.format(language, np.round(overl_acc/splits, decimals=2)))
     # file.write('Accuracy {}: {}\n\n'.format(language, np.round(overl_acc/splits, decimals=2)))
     # file.close()
-    # save_predictions(idx, np.int32(np.round(Y_Test/splits, decimals=0)), language, output)
+    save_predictions(idx, np.int32(np.round(Y_Test/splits, decimals=0)), language, output)
     # print(classification_report(labels, np.int32(np.round(Y_Test/splits, decimals=0)), target_names=['No Hate', 'Hate'],  digits=4, zero_division=1))
       
   
@@ -227,18 +233,18 @@ if __name__ == '__main__':
       _, _, labels = load_data_PAN(os.path.join(data_path, language.lower()), labeled=True)
       encodings = torch.load('logs/train_Encodings_{}.pt'.format(language))
 
-      history = trainfcnn([encodings, labels], language, splits, epoches, batch_size, interm_layer_size = [64, 32], lr=learning_rate, decay=decay)
+      history = trainfcnn([encodings, labels], language, splits, epoches, batch_size, interm_layer_size = [interm_layer_size, 64, 32], lr=learning_rate, decay=decay)
       plot_training(history[-1], language + '_fcnn', 'acc')
     else:
 
       tweets_test, idx  = load_data_PAN(os.path.join(test_path, language.lower()), labeled=False)
       encodings = torch.load('logs/test_Encodings_{}.pt'.format(language))
-      predictfnn(encodings, idx, language, output, splits, batch_size, save_predictions)
+      predictfnn(encodings, idx, language, output, splits, batch_size, [interm_layer_size, 64, 32], save_predictions)
       
 
     exit(0)
 
-  if mode == 'tcgnn':
+  if mode == 'cgnn':
     '''
       Train Train Graph Concolutional Neural Network
     ''' 
@@ -249,4 +255,9 @@ if __name__ == '__main__':
 
       history = train_GCNN(encodings, labels, language, splits = splits, epoches = epoches, batch_size = batch_size, hidden_channels = interm_layer_size, lr=learning_rate, decay=decay)
       plot_training(history[-1], language + '_cgnn', 'acc')
+    else:
+
+      tweets_test, idx  = load_data_PAN(os.path.join(test_path, language.lower()), labeled=False)
+      encodings = torch.load('logs/test_Encodings_{}.pt'.format(language))
+      predicgcn(encodings, idx, language, splits, output, batch_size, interm_layer_size, save_predictions)
     

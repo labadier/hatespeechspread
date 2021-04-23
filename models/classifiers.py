@@ -50,7 +50,7 @@ def predict_example(spreader, no_spreader, u, checkp=0.25, method='euclidean'):
             y_hat_aster += signature(sn, nu, method)
         y_hat = y_hat + (y_hat_aster >= len(no_spreader_aster)/2)
     # print(y_hat, len(spreader_aster))
-    return y_hat 
+    return (y_hat >= (len(spreader_aster)/2))
 
 
 def K_Impostor(spreader, no_spreader, unk, checkp=0.25, method='euclidean', model=None):
@@ -62,12 +62,13 @@ def K_Impostor(spreader, no_spreader, unk, checkp=0.25, method='euclidean', mode
         metric['deepmetric'] = lambda x, y : model.forward(torch.unsqueeze(torch.tensor(x), 0), torch.unsqueeze(torch.tensor(y), 0))
 
     Y = np.zeros((len(unk), ))
+    print(f'Spreaders Protos: {spreader.shape} No Spreaders Protos: {no_spreader.shape}')
     for i, u in zip(range(len(unk)), unk):
         ansp = predict_example(spreader, no_spreader, u, checkp, method)
         ansn = predict_example(no_spreader, spreader, u, checkp, method)
         # print(ansp, ansn)
         Y[i] = (ansp <= ansn)
-    
+    # print(Y)
     return Y
 
 class FNNData(Dataset):
@@ -98,12 +99,12 @@ class FNN_Classifier(torch.nn.Module):
         self.best_acc = -1
         self.language = language
         self.interm_neurons = interm_size
-        self.encoder = torch.nn.Sequential(Aditive_Attention(input=self.interm_neurons[0]), 
+        self.encoder = torch.nn.Sequential(Aditive_Attention(units=32, input=self.interm_neurons[0]), 
                     # torch.nn.BatchNorm1d(num_features=self.interm_neurons[0]), torch.nn.LeakyReLU(),
-                    torch.nn.Linear(in_features=self.interm_neurons[0], out_features=32),
-                    torch.nn.BatchNorm1d(num_features=32), torch.nn.LeakyReLU(),
+                    torch.nn.Linear(in_features=self.interm_neurons[0], out_features=self.interm_neurons[1]),
+                    torch.nn.BatchNorm1d(num_features=self.interm_neurons[1]), torch.nn.LeakyReLU(),
                     torch.nn.Dropout(p=0.3),
-                    torch.nn.Linear(in_features=32, out_features=2))
+                    torch.nn.Linear(in_features=self.interm_neurons[1], out_features=2))
         self.loss_criterion = torch.nn.CrossEntropyLoss() 
 
         self.device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
@@ -213,12 +214,12 @@ def trainfcnn(task_data, language, splits = 5, epoches = 4, batch_size = 64, int
         del trainloader
         del model
         del devloader
-    print(f"{bcolors.OKGREEN}{bcolors.BOLD}{50*'*'}\nOveral Accuracy: {overall_acc/splits}\n{50*'*'}{bcolors.ENDC}")
+    print(f"{bcolors.OKGREEN}{bcolors.BOLD}{50*'*'}\nOveral Accuracy {language}: {overall_acc/splits}\n{50*'*'}{bcolors.ENDC}")
     return history
 
-def predictfnn(encodings, idx, language, output, splits, batch_size, save_predictions):
+def predictfnn(encodings, idx, language, output, splits, batch_size, interm_layer_size, save_predictions):
 
-    model = FNN_Classifier(interm_size=[64, 32], language=language)
+    model = FNN_Classifier(interm_size=interm_layer_size, language=language)
     devloader = DataLoader(FNNData([encodings, np.array(idx)]), batch_size=batch_size, shuffle=False, num_workers=4, worker_init_fn=seed_worker)
 
     model.eval()

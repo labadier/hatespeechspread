@@ -483,7 +483,7 @@ def train_Siamese(model, examples, devexamples, language, mode = 'metriclearn', 
 
       if (j+1)*100.0/batches - perc  >= 1 or j == batches-1:
         perc = (1+j)*100.0/batches
-        last_printed = '\rEpoch:{} step {} of {}. {}% loss: {}'.format(epoch+1, j+1, batches, np.round(perc, decimals=1), np.round(running_loss, decimals=3))
+        last_printed = f'\rEpoch:{epoch+1:3d} of {epoches} step {j+1} of {batches}. {perc:.1f}% loss: {running_loss:.3f}'
         print(last_printed, end="")
     
     model.eval()
@@ -526,7 +526,7 @@ def train_Siamese(model, examples, devexamples, language, mode = 'metriclearn', 
       model.best_loss = dev_loss
       band = True
     
-    ep_finish_print = "\t||| dev_loss: {}".format(np.round(dev_loss, decimals=3))
+    ep_finish_print = f' dev_loss: {dev_loss:.3f}'
     if band == True:
       print(bcolors.OKBLUE + bcolors.BOLD + last_printed + ep_finish_print + '\t[Weights Updated]' + bcolors.ENDC)
     else: print(ep_finish_print)

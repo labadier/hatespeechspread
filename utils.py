@@ -199,6 +199,7 @@ def make_pairs_with_protos(P_Set, N_Set, authors, labels):
         dev_label += [0]*3
         dev_unk += [i]*3
 
+    #non hate
     top = int(len(unln)*0.9)
     for i in unln[:top]:
         posit = list(np.random.permutation(len(N_Set))[:pairs])
@@ -299,6 +300,7 @@ def save_predictions(idx, y_hat, language, path):
     for i in range(len(idx)):
         with open(os.path.join(path, idx[i] + '.xml'), 'w') as file:
             file.write('<author id=\"{}\"\n\tlang=\"{}\"\n\ttype=\"{}\"\n/>'.format(idx[i], language, y_hat[i]))
+    print(f'{bcolors.BOLD}{bcolors.OKGREEN}Predictions Done Successfully{bcolors.ENDC}')
 
 def compute_centers_PSC(language, labels, num_protos=10):
 
@@ -347,7 +349,7 @@ def compute_centers_PSC(language, labels, num_protos=10):
         else:
 
             Major_class = 0
-            if labels[idx[i]].sum() > len(idx)/2:
+            if labels[idx].sum() > len(idx)/2:
                 Major_class = 1
 
             for j in range(len(idx)):
@@ -372,7 +374,6 @@ def compute_centers_PSC(language, labels, num_protos=10):
                     protos.append(new_p)
 
     protos = list(set(protos))
-    print(f'{bcolors.UNDERLINE}{bcolors.BOLD}Computed prototypes:\t{len(protos)}{bcolors.ENDC}')
     P_set = []
     N_set = []
 
@@ -380,7 +381,8 @@ def compute_centers_PSC(language, labels, num_protos=10):
         if labels[i] == 1:
             P_set.append(i)
         else: N_set.append(i)
-    #%%
+    
+    print(f'{bcolors.BOLD}Computed prototypes {language}:\t{len(protos)}\nNegative: {len(N_set)} Positive: {len(P_set)}{bcolors.ENDC}')
     P_idx = list(np.argwhere(labels==1).reshape(-1))
     N_idx = list(np.argwhere(labels==0).reshape(-1))
 

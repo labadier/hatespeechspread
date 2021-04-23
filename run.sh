@@ -20,27 +20,30 @@ clear
 # python main.py -l EN  -mode eSiamese -bs 64 -wp logs/siamese_encoder_EN.pt -phase test
 
 # # Metric Learning
-# python main.py -l ES  -mode metriclearn -bs 64 -epoches 120 -loss contrastive -lr 5e-5 -decay 0 -wp logs/BSM_split_ES.pt -dp data/pan21-author-profiling-training-2021-03-14 -phase train -interm_layer 96
-# python main.py -l EN  -mode metriclearn -bs 64 -epoches 120 -loss contrastive -lr 5e-5 -decay 0 -wp logs/BSM_split_EN.pt -dp data/pan21-author-profiling-training-2021-03-14 -phase train -interm_layer 96
+python main.py -l ES  -mode metriclearn -bs 64 -epoches 80 -loss contrastive -lr 4e-5 -decay 1e-6 -wp logs/BSM_split_ES.pt -dp data/pan21-author-profiling-training-2021-03-14 -phase train -interm_layer 96
+python main.py -l EN  -mode metriclearn -bs 64 -epoches 80 -loss contrastive -lr 1e-4 -wp logs/BSM_split_EN.pt -dp data/pan21-author-profiling-training-2021-03-14 -phase train -interm_layer 96
 
-#Impostors Evaluation
-# python main.py -l EN  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 1 -metric deepmetric -ecnImp transformer -dt data/pan21-author-profiling-training-2021-03-14 -output logs -interm_layer 96
-# python main.py -l ES  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 1 -metric deepmetric -ecnImp transformer -dt data/pan21-author-profiling-training-2021-03-14 -output logs -interm_layer 96
+# # #Impostors Evaluation
+# python main.py -l EN  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 0.4 -metric cosine -up random -ecnImp transformer -dt data/pan21-author-profiling-training-2021-03-14 -output logs -interm_layer 96
+# python main.py -l ES  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 0.35 -metric cosine -up random -ecnImp transformer -dt data/pan21-author-profiling-training-2021-03-14 -output logs -interm_layer 96
 
 #Impostors Evaluation deepmetric
-# python main.py -l EN  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 0.2 -metric deepmetric -ecnImp transformer -dt data/pan21-author-profiling-training-2021-03-14 -output logs
-# python main.py -l ES  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 0.2 -metric deepmetric -ecnImp transformer -dt data/pan21-author-profiling-training-2021-03-14 -output logs
+python main.py -l EN  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 1 -up prototipical -metric deepmetric -ecnImp transformer -dt data/pan21-author-profiling-training-2021-03-14 -output logs -interm_layer 96
+python main.py -l ES  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 1 -up prototipical -metric deepmetric -ecnImp transformer -dt data/pan21-author-profiling-training-2021-03-14 -output logs -interm_layer 96
 
 #FCNN Train
-# python main.py -l EN  -mode tfcnn -dp data/pan21-author-profiling-training-2021-03-14 -bs 32 -epoches 80 -lr 1e-4 -decay 0 -phase train
-# python main.py -l ES  -mode tfcnn -dp data/pan21-author-profiling-training-2021-03-14 -bs 32 -epoches 80 -lr 1e-4 -decay 0 -phase train
+# python main.py -l EN  -mode tfcnn -dp data/pan21-author-profiling-training-2021-03-14 -bs 32 -epoches 80 -lr 1e-4 -decay 0 -phase train -interm_layer 96
+# python main.py -l ES  -mode tfcnn -dp data/pan21-author-profiling-training-2021-03-14 -bs 32 -epoches 80 -lr 1e-4 -decay 0 -phase train -interm_layer 96
 
 
 #FCNN pred
-# python main.py -l EN  -mode tfcnn -dt data/pan21-author-profiling-training-2021-03-14 -bs 32 -phase test -output logs
-# python main.py -l ES  -mode tfcnn -dt data/pan21-author-profiling-training-2021-03-14 -bs 32 -phase test -output logs
+# python main.py -l EN  -mode tfcnn -dt data/pan21-author-profiling-training-2021-03-14 -bs 32 -phase test -output logs -interm_layer 96
+# python main.py -l ES  -mode tfcnn -dt data/pan21-author-profiling-training-2021-03-14 -bs 32 -phase test -output logs -interm_layer 96
 
 #GCN
-python main.py -l EN  -mode tcgnn -dp data/pan21-author-profiling-training-2021-03-14 -bs 32 -epoches 50 -lr 1e-3 -decay 0 -phase train -bs 16 -interm_layer 128
-python main.py -l ES  -mode tcgnn -dp data/pan21-author-profiling-training-2021-03-14 -bs 32 -epoches 50 -lr 1e-3 -decay 0 -phase train -bs 16 -interm_layer 128
+# python main.py -l EN  -mode cgnn -dp data/pan21-author-profiling-training-2021-03-14 -epoches 60 -lr 1e-3 -decay 0 -phase train -bs 16 -interm_layer 128
+# python main.py -l ES  -mode cgnn -dp data/pan21-author-profiling-training-2021-03-14 -epoches 60 -lr 1e-3 -decay 0 -phase train -bs 16 -interm_layer 128
 
+# #GCN pred
+# python main.py -l EN  -mode cgnn -dt data/pan21-author-profiling-training-2021-03-14 -bs 32 -phase test -output logs -interm_layer 128
+# python main.py -l ES  -mode cgnn -dt data/pan21-author-profiling-training-2021-03-14 -bs 32 -phase test -output logs -interm_layer 128

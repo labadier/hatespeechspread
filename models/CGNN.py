@@ -1,4 +1,5 @@
 import os, sys, numpy as np, torch
+from torch.functional import split
 sys.path.append('../')
 import torch_geometric
 import torch.nn.functional as F
@@ -8,14 +9,15 @@ from models.models import seed_worker
 
 class GCN(torch.nn.Module):
 
-	def __init__(self, language, hidden_channels=128, features_nodes=96):
+	def __init__(self, language, hidden_channels=64, features_nodes=96):
 		super(GCN, self).__init__()
 
-		self.conv1 = torch_geometric.nn.GCNConv(features_nodes, hidden_channels)
-		self.conv2 = torch_geometric.nn.GCNConv(hidden_channels, hidden_channels)
-		# self.conv3 = torch_geometric.nn.GCNConv(hidden_channels, hidden_channels)
-		self.lin = torch.nn.Linear(hidden_channels, 2)
+		self.conv1 = torch_geometric.nn.ChebConv(features_nodes, hidden_channels, 4)#4self.conv1 = torch_geometric.nn.GCNConv(features_nodes, hidden_channels)
+		self.conv2 = torch_geometric.nn.ChebConv(hidden_channels, hidden_channels, 3)#3torch_geometric.nn.GCNConv(hidden_channels, hidden_channels)
+		self.conv3 = torch_geometric.nn.ChebConv(hidden_channels, hidden_channels, 2)#2
+		self.lin = torch.nn.Sequential(torch.nn.Linear(hidden_channels, 32), torch.nn.LeakyReLU(), torch.nn.Linear(32, 2))
 		self.best_acc = None
+		self.best_acc_train = None
 		self.language = language
 		self.loss_criterion = torch.nn.CrossEntropyLoss()
 
@@ -29,10 +31,11 @@ class GCN(torch.nn.Module):
 		x = x.relu()
 		x = self.conv2(x, edge_index)
 		x = x.relu()
-		# x = self.conv3(x, edge_index)
+		x = self.conv3(x, edge_index)
+		x = torch_geometric.nn.global_mean_pool(x, batch.to(self.device)) 
 
-		x = torch_geometric.nn.global_mean_pool(x, batch.to(self.device))  # [batch_size, hidden_channels]
 		x = F.dropout(x, p=0.2, training=self.training)
+
 		x = self.lin(x)
 		return x
 
@@ -57,6 +60,7 @@ def train_GCNN(encodings, target, language, splits = 5, epoches = 4, batch_size 
 	edges = torch.tensor(edges, dtype=torch.long)
 	target = torch.tensor(target)
 	encodings = torch.tensor(encodings, dtype=torch.float)
+	overall_acc = 0
 
 	history = []
 	for i, (train_index, test_index) in enumerate(skf.split(np.zeros_like(target), target)):  
@@ -103,7 +107,7 @@ def train_GCNN(encodings, target, language, splits = 5, epoches = 4, batch_size 
 
 				if (j+1)*100.0/batches - perc  >= 1 or j == batches-1:
 					perc = (1+j)*100.0/batches
-					last_printed = '\rEpoch:{} step {} of {}. {}% loss: {}'.format(epoch+1, j+1, batches, np.round(perc, decimals=1), np.round(running_loss, decimals=3))
+					last_printed = f'\rEpoch:{epoch+1:3d} of {epoches} step {j+1} of {batches}. {perc:.1f}% loss: {running_loss:.3f}'
 					print(last_printed, end="")
 			
 			model.eval()
@@ -131,22 +135,63 @@ def train_GCNN(encodings, target, language, splits = 5, epoches = 4, batch_size 
 
 			band = False
 			if model.best_acc is None or model.best_acc < dev_acc:
-				model.save('bestmodelo_split_{}_{}.pt'.format(language[:2], i+1))
+				model.save('gcn_{}_{}.pt'.format(language[:2], i+1))
 				model.best_acc = dev_acc
+				model.best_acc_train = acc
+				band = True
+			elif model.best_acc == dev_acc and (model.best_acc_train is None or model.best_acc_train < acc):
+				model.save('gcn_{}_{}.pt'.format(language[:2], i+1))
+				model.best_acc_train = acc
 				band = True
 
-			ep_finish_print = " acc: {} ||| dev_loss: {} dev_acc: {}".format(np.round(acc, decimals=3), np.round(dev_loss, decimals=3), np.round(dev_acc.reshape(1, -1)[0], decimals=3))
+
+			ep_finish_print = f' acc: {acc:.3f} | dev_loss: {dev_loss:.3f} dev_acc: {dev_acc.reshape(-1)[0]:.3f}'
 
 			if band == True:
 				print(bcolors.OKBLUE + bcolors.BOLD + last_printed + ep_finish_print + '\t[Weights Updated]' + bcolors.ENDC)
 			else: print(ep_finish_print)
 
-		
+		overall_acc += model.best_acc
 		print('Training Finished Split: {}'. format(i+1))
 		del trainloader
 		del model
 		del devloader
-		break
+	print(f"{bcolors.OKGREEN}{bcolors.BOLD}{50*'*'}\nOveral Accuracy {language}: {overall_acc/splits}\n{50*'*'}{bcolors.ENDC}")
 	return history
+
+
+def predicgcn(encodings, idx, language, splits, output, batch_size, hidden_channels, save_predictions):
+
+	a = []
+	b = []
+	for i in range(encodings.shape[1]):  
+		a += [i]*int(encodings.shape[1])
+		b += [j for j in range(encodings.shape[1])]
+
+	edges = [a, b]
+	edges = torch.tensor(edges, dtype=torch.long)
+	encodings = torch.tensor(encodings, dtype=torch.float)
+
+	model = GCN(language, hidden_channels, encodings.shape[-1])
+	data_test = [torch_geometric.data.Data(x=encodings[i], edge_index=edges) for i in range(len(encodings))]
+	devloader = torch_geometric.data.DataLoader(data_test, batch_size=batch_size, shuffle=True, num_workers=4, worker_init_fn=seed_worker)
+	
+	model.eval()
+	y_hat = np.zeros((len(idx), ))
+	for i in range(splits):
+
+		model.load(f'logs/gcn_{language}_{i+1}.pt')
+		with torch.no_grad():
+			out = None
+			ids = None
+			for k, data in enumerate(devloader, 0): 
+				dev_out = model(data.x, data.edge_index, data.batch)
+				if k == 0:
+					out = dev_out
+				else:  out = torch.cat((out, dev_out), 0)
+
+			y_hat += torch.argmax(torch.nn.functional.softmax(out, dim=-1), axis=-1).cpu().numpy()
+	y_hat = np.int32(np.round(y_hat/splits, decimals=0))
+	save_predictions(idx, y_hat, language, output)
 
 
