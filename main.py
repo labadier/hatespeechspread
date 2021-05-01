@@ -6,7 +6,7 @@ from utils import plot_training, load_data, load_data_PAN, make_pairs
 from utils import make_triplets, load_irony, make_profile_pairs, save_predictions
 from utils import make_pairs_with_protos, compute_centers_PSC
 from sklearn.metrics import f1_score
-from models.classifiers import K_Impostor, trainfcnn, predictfnn
+from models.classifiers import K_Impostor, train_classifier, predict, FNN_Classifier, LSTMAtt_Classifier
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import classification_report, accuracy_score
 from utils import bcolors
@@ -38,7 +38,8 @@ def check_params(args=None):
   parser.add_argument('-metric', metavar='mtricImp', help='Metric to compare on Impostor Method', default='cosine', choices=['cosine', 'euclidean', 'deepmetric'] )
   parser.add_argument('-ecnImp', metavar='EncodertoImp', help='Encoder to use on Importor either Siamese or Transformer', default='transformer', choices=['transformer', 'siamese'] )
   parser.add_argument('-dt', metavar='data_test', help='Get Data for test')
-  parser.add_argument('-up', metavar='data_test', help='Using Prototipes for Impostor or compare to random examples', default="prototipical", choices=["prototipical", "random"])
+  parser.add_argument('-up', metavar='useof_prototype', help='Using Prototipes for Impostor or compare to random examples', default="prototipical", choices=["prototipical", "random"])
+  parser.add_argument('-lstm_size', metavar='LSTM_hidden_size', type=int,help='LSTM classfifier hidden size')
   return parser.parse_args(args)
 
 if __name__ == '__main__':
@@ -46,6 +47,7 @@ if __name__ == '__main__':
 
   parameters = check_params(sys.argv[1:])
 
+  lstm_hidden_size = parameters.lstm_size
   learning_rate, decay = parameters.lr,  parameters.decay
   splits = parameters.splits
   interm_layer_size = parameters.interm_layer
@@ -229,18 +231,18 @@ if __name__ == '__main__':
       Train Train Att-FCNN
     ''' 
     if phase == 'train':
+      
 
       _, _, labels = load_data_PAN(os.path.join(data_path, language.lower()), labeled=True)
       encodings = torch.load('logs/train_Encodings_{}.pt'.format(language))
 
-      history = trainfcnn([encodings, labels], language, splits, epoches, batch_size, interm_layer_size = [interm_layer_size, 64, 32], lr=learning_rate, decay=decay)
+      history = train_classifier('classifier',[encodings, labels], language, splits, epoches, batch_size, interm_layer_size = [interm_layer_size, 64, 32], lr=learning_rate, decay=decay)
       plot_training(history[-1], language + '_fcnn', 'acc')
     else:
-
+      model = FNN_Classifier(interm_size=[interm_layer_size, 64, 32], language=language)
       tweets_test, idx  = load_data_PAN(os.path.join(test_path, language.lower()), labeled=False)
       encodings = torch.load('logs/test_Encodings_{}.pt'.format(language))
-      predictfnn(encodings, idx, language, output, splits, batch_size, [interm_layer_size, 64, 32], save_predictions)
-      
+      predict(model, 'classifier', encodings, idx, language, output, splits, batch_size, [interm_layer_size, 64, 32], save_predictions)
 
     exit(0)
 
@@ -261,3 +263,24 @@ if __name__ == '__main__':
       encodings = torch.load('logs/test_Encodings_{}.pt'.format(language))
       predicgcn(encodings, idx, language, splits, output, batch_size, interm_layer_size, save_predictions)
     
+
+  if mode == 'lstm':
+
+    '''
+      Train Train Att-FCNN
+    ''' 
+    if phase == 'train':
+      
+
+      _, _, labels = load_data_PAN(os.path.join(data_path, language.lower()), labeled=True)
+      encodings = torch.load('logs/train_Encodings_{}.pt'.format(language))
+
+      history = train_classifier('lstm', [encodings, labels], language, splits, epoches, batch_size, interm_layer_size = [interm_layer_size, 32, lstm_hidden_size], lr=learning_rate, decay=decay)
+      plot_training(history[-1], language + '_lstm', 'acc')
+    else:
+      model = LSTMAtt_Classifier(interm_layer_size, 32, lstm_hidden_size, language)
+      tweets_test, idx  = load_data_PAN(os.path.join(test_path, language.lower()), labeled=False)
+      encodings = torch.load('logs/test_Encodings_{}.pt'.format(language))
+      predict(model, 'lstm', encodings, idx, language, output, splits, batch_size, [interm_layer_size, 64, 32], save_predictions)
+
+    exit(0)

@@ -1,6 +1,10 @@
 #%%
 from functools import WRAPPER_ASSIGNMENTS
 import torch, os
+
+from torch._C import device
+from torch.nn.modules import dropout
+from transformers.tokenization_utils_base import TruncationStrategy
 from models.models import  Aditive_Attention, seed_worker
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
@@ -123,7 +127,7 @@ class FNN_Classifier(torch.nn.Module):
         torch.save(self.state_dict(), os.path.join('logs', path))
 
 
-def trainfcnn(task_data, language, splits = 5, epoches = 4, batch_size = 64, interm_layer_size = [64, 32], lr = 1e-5,  decay=0):
+def train_classifier(model_name, task_data, language, splits = 5, epoches = 4, batch_size = 64, interm_layer_size = [64, 32], lr = 1e-5,  decay=0):
  
     skf = StratifiedKFold(n_splits=splits, shuffle=True, random_state = 23)
 
@@ -133,7 +137,10 @@ def trainfcnn(task_data, language, splits = 5, epoches = 4, batch_size = 64, int
     for i, (train_index, test_index) in enumerate(skf.split(np.zeros_like(task_data[1]), task_data[1])):  
 
         history.append({'loss': [], 'acc':[], 'dev_loss': [], 'dev_acc': []})
-        model = FNN_Classifier(interm_layer_size, language)
+        if model_name == 'classifier':
+            model = FNN_Classifier(interm_layer_size, language)
+        else:
+            model = LSTMAtt_Classifier(interm_layer_size[0], interm_layer_size[1], interm_layer_size[2], language)
 
         optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=decay)
         trainloader = DataLoader(FNNData([task_data[0][train_index], task_data[1][train_index]]), batch_size=batch_size, shuffle=True, num_workers=4, worker_init_fn=seed_worker)
@@ -199,7 +206,7 @@ def trainfcnn(task_data, language, splits = 5, epoches = 4, batch_size = 64, int
 
                 band = False
                 if model.best_acc < dev_acc:
-                    model.save('classifier_{}_{}.pt'.format(language, i+1))
+                    model.save(f'{model_name}_{language}_{i+1}.pt')
                     model.best_acc = dev_acc
                     band = True
                 
@@ -217,16 +224,15 @@ def trainfcnn(task_data, language, splits = 5, epoches = 4, batch_size = 64, int
     print(f"{bcolors.OKGREEN}{bcolors.BOLD}{50*'*'}\nOveral Accuracy {language}: {overall_acc/splits}\n{50*'*'}{bcolors.ENDC}")
     return history
 
-def predictfnn(encodings, idx, language, output, splits, batch_size, interm_layer_size, save_predictions):
+def predict(model, model_name, encodings, idx, language, output, splits, batch_size, interm_layer_size, save_predictions):
 
-    model = FNN_Classifier(interm_size=interm_layer_size, language=language)
     devloader = DataLoader(FNNData([encodings, np.array(idx)]), batch_size=batch_size, shuffle=False, num_workers=4, worker_init_fn=seed_worker)
 
     model.eval()
     y_hat = np.zeros((len(idx), ))
     for i in range(splits):
         
-        model.load('logs/classifier_{}_{}.pt'.format(language, i+1))
+        model.load(f'logs/{model_name}_{language}_{i+1}.pt')
         with torch.no_grad():
             out = None
             ids = None
@@ -242,4 +248,59 @@ def predictfnn(encodings, idx, language, output, splits, batch_size, interm_laye
     y_hat = np.int32(np.round(y_hat/splits, decimals=0))
 
     save_predictions(idx, y_hat , language, output)
-                
+
+
+class AttentionLSTM(torch.nn.Module):
+    
+    def __init__(self, neurons, dimension):
+        super(AttentionLSTM, self).__init__()
+        self.neurons = neurons
+        self.Wx = torch.nn.Linear(dimension, neurons)
+        self.Wxhat = torch.nn.Linear(dimension, neurons)
+        self.Att = torch.nn.Sequential(torch.nn.Linear(neurons, 1), torch.nn.Sigmoid())
+        
+
+    def forward(self, X):
+        
+        Wx = self.Wx(X)
+        Wthat = torch.repeat_interleave(torch.unsqueeze(X, dim=1), Wx.shape[1], dim=1)
+        Wxhat = self.Wxhat(Wthat)
+        Wx = torch.unsqueeze(Wx, dim=2)
+        A = self.Att(torch.tanh(Wxhat + Wx))
+        A = Wthat*A
+        return torch.sum(A, axis=-2)
+
+class LSTMAtt_Classifier(torch.nn.Module):
+
+    def __init__(self, hidden_size, attention_neurons, lstm_size, language='EN'):
+
+        super(LSTMAtt_Classifier, self).__init__()
+
+        self.best_acc = -1
+        self.language = language
+        self.att = AttentionLSTM(neurons=attention_neurons, dimension=hidden_size)
+        self.bilstm = torch.nn.LSTM(batch_first=True, input_size=hidden_size, hidden_size=lstm_size, bidirectional=True, proj_size=0)
+        self.lstm = torch.nn.LSTM(batch_first=True, input_size=lstm_size*2, hidden_size=lstm_size, proj_size=0)
+        self.dense = torch.nn.Linear(in_features=lstm_size, out_features=2)
+        self.loss_criterion = torch.nn.CrossEntropyLoss() 
+
+        self.device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+        self.to(device=self.device)
+
+    def forward(self, A):
+        
+        X = self.att(A.to(device=self.device))
+        X, _ = self.bilstm(X)
+        X, _  = self.lstm(X)
+        X = self.dense(X[:,-1])
+
+        return  X
+
+
+    def load(self, path):
+        self.load_state_dict(torch.load(path, map_location=self.device))
+
+    def save(self, path):
+        if os.path.exists('./logs') == False:
+            os.system('mkdir logs')
+        torch.save(self.state_dict(), os.path.join('logs', path))
