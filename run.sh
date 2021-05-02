@@ -49,8 +49,8 @@ clear
 # python main.py -l ES  -mode cgnn -dt data/pan21-author-profiling-training-2021-03-14 -bs 32 -phase test -output logs -interm_layer 128
 
 #LSTM Train
-python main.py -l EN  -mode lstm -dp data/pan21-author-profiling-training-2021-03-14 -bs 16 -epoches 80 -lr 1e-3 -decay 0 -phase train -interm_layer 64 -lstm_size 32
-python main.py -l ES  -mode lstm -dp data/pan21-author-profiling-training-2021-03-14 -bs 16 -epoches 80 -lr 1e-3 -decay 0 -phase train -interm_layer 64 -lstm_size 32
+python main.py -l EN  -mode lstm -dp data/pan21-author-profiling-training-2021-03-14 -bs 16 -epoches 80 -lr 3e-4 -decay 0 -phase train -interm_layer 64 -lstm_size 32
+python main.py -l ES  -mode lstm -dp data/pan21-author-profiling-training-2021-03-14 -bs 16 -epoches 80 -lr 3e-4 -decay 0 -phase train -interm_layer 64 -lstm_size 32
 
 # #LSTM Train
 # python main.py -l EN  -mode lstm -dp data/pan21-author-profiling-training-2021-03-14 -bs 16 -epoches 80 -lr 1e-3 -decay 0 -phase test -interm_layer 96 -lstm_size 32

@@ -178,7 +178,8 @@ def train_classifier(model_name, task_data, language, splits = 5, epoches = 4, b
 
                 if (j+1)*100.0/batches - perc  >= 1 or j == batches-1:
                     perc = (1+j)*100.0/batches
-                    last_printed = '\rEpoch:{} step {} of {}. {}% loss: {}'.format(epoch+1, j+1, batches, np.round(perc, decimals=1), np.round(running_loss, decimals=3))
+                    last_printed = f'\rEpoch:{epoch+1:3d} of {epoches} step {j+1} of {batches}. {perc:.1f}% loss: {running_loss:.3f}'
+					
                     print(last_printed, end="")
 
             model.eval()
@@ -209,8 +210,7 @@ def train_classifier(model_name, task_data, language, splits = 5, epoches = 4, b
                     model.save(f'{model_name}_{language}_{i+1}.pt')
                     model.best_acc = dev_acc
                     band = True
-                
-                ep_finish_print = " acc: {} ||| dev_loss: {} dev_acc: {}".format(np.round(acc, decimals=3), np.round(dev_loss, decimals=3), np.round(dev_acc.reshape(1, -1)[0], decimals=3))
+                ep_finish_print = f' acc: {acc:.3f} | dev_loss: {dev_loss:.3f} dev_acc: {dev_acc.reshape(-1)[0]:.3f}'
 
                 if band == True:
                     print(bcolors.OKBLUE + bcolors.BOLD + last_printed + ep_finish_print + '\t[Weights Updated]' + bcolors.ENDC)
