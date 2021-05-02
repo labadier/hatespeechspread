@@ -3,10 +3,11 @@ import argparse, sys, os, numpy as np, torch, random
 from models.models import Encoder, train_Encoder, train_Siamese, Siamese_Encoder, Siamese_Metric
 from models.CGNN import train_GCNN, GCN, predicgcn
 from utils import plot_training, load_data, load_data_PAN, make_pairs
-from utils import make_triplets, load_irony, make_profile_pairs, save_predictions
-from utils import make_pairs_with_protos, compute_centers_PSC
+from utils import make_triplets,make_profile_pairs, save_predictions
+from utils import make_pairs_with_protos, compute_centers_PSC, conver_to_class
 from sklearn.metrics import f1_score
 from models.classifiers import K_Impostor, train_classifier, predict, FNN_Classifier, LSTMAtt_Classifier
+from models.classifiers import svm
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import classification_report, accuracy_score
 from utils import bcolors
@@ -76,7 +77,8 @@ if __name__ == '__main__':
     '''
     if os.path.exists('./logs') == False:
       os.system('mkdir logs')
-    text, hateness = load_data(data_path)
+    text, _, hateness = load_data_PAN(os.path.join(data_path, language[:2].lower()))#load_data
+    text, hateness = conver_to_class(text, hateness)
     history = train_Encoder(text, hateness, language, mode_weigth, splits, epoches, batch_size, max_length, interm_layer_size, learning_rate, decay, 1, 0.1)
     plot_training(history[-1], language, 'acc')
     exit(0)
@@ -200,7 +202,7 @@ if __name__ == '__main__':
 
       if up == "prototipical":
         y_hat = K_Impostor(encodings[P_Set], encodings[N_Set], unk, checkp=coef, method=metric, model=model)
-        Y_Test += K_Impostor(encodings[P_Set], encodings[N_Set], encodings_test, checkp=coef, method=metric, model=model)
+        # Y_Test += K_Impostor(encodings[P_Set], encodings[N_Set], encodings_test, checkp=coef, method=metric, model=model)
       else:
         known = encodings[train_index]
         known_labels = labels[train_index]
@@ -209,7 +211,7 @@ if __name__ == '__main__':
         N_idx = list(np.argwhere(known_labels==0).reshape(-1))
 
         y_hat = K_Impostor(encodings[P_idx], encodings[N_idx], unk, checkp=coef, method=metric, model=model)
-        Y_Test += K_Impostor(encodings[P_idx], encodings[N_idx], encodings_test, checkp=coef, method=metric, model=model)
+        # Y_Test += K_Impostor(encodings[P_idx], encodings[N_idx], encodings_test, checkp=coef, method=metric, model=model)
       
       metrics = classification_report(unk_labels, y_hat, target_names=['No Hate', 'Hate'],  digits=4, zero_division=1)
       acc = accuracy_score(unk_labels, y_hat)
@@ -238,12 +240,11 @@ if __name__ == '__main__':
 
       history = train_classifier('classifier',[encodings, labels], language, splits, epoches, batch_size, interm_layer_size = [interm_layer_size, 64, 32], lr=learning_rate, decay=decay)
       plot_training(history[-1], language + '_fcnn', 'acc')
-    else:
+    elif phase ==  'test':
       model = FNN_Classifier(interm_size=[interm_layer_size, 64, 32], language=language)
       tweets_test, idx  = load_data_PAN(os.path.join(test_path, language.lower()), labeled=False)
       encodings = torch.load('logs/test_Encodings_{}.pt'.format(language))
       predict(model, 'classifier', encodings, idx, language, output, splits, batch_size, [interm_layer_size, 64, 32], save_predictions)
-
     exit(0)
 
   if mode == 'cgnn':
@@ -257,12 +258,26 @@ if __name__ == '__main__':
 
       history = train_GCNN(encodings, labels, language, splits = splits, epoches = epoches, batch_size = batch_size, hidden_channels = interm_layer_size, lr=learning_rate, decay=decay)
       plot_training(history[-1], language + '_cgnn', 'acc')
-    else:
+    elif phase == 'test':
 
       tweets_test, idx  = load_data_PAN(os.path.join(test_path, language.lower()), labeled=False)
       encodings = torch.load('logs/test_Encodings_{}.pt'.format(language))
       predicgcn(encodings, idx, language, splits, output, batch_size, interm_layer_size, save_predictions)
-    
+    elif phase == 'encode':
+      
+      weight_path = os.path.join(weight_path, f'gcn_{language[:2]}_1.pt')
+
+      if os.path.isfile(weight_path) == False:
+        print( f"{bcolors.FAIL}{bcolors.BOLD}ERROR: Weight path set unproperly{bcolors.ENDC}")
+        exit(1)
+      encodings = torch.load(f'logs/train_Encodings_{language}.pt')
+      model = GCN(language, interm_layer_size, encodings.shape[-1])
+	
+      model.load(weight_path)
+      encs = model.get_encodings(encodings, batch_size)
+      torch.save(np.array(encs), f'logs/{phase}_Profile_Encodings_{language[:2]}.pt')
+      print(f"{bcolors.OKCYAN}{bcolors.BOLD}Encodings Saved Successfully{bcolors.ENDC}")
+      exit(0)
 
   if mode == 'lstm':
 
@@ -284,3 +299,11 @@ if __name__ == '__main__':
       predict(model, 'lstm', encodings, idx, language, output, splits, batch_size, [interm_layer_size, 64, 32], save_predictions)
 
     exit(0)
+
+  if mode == 'svm':
+    tweets, _, labels = load_data_PAN(os.path.join(data_path, language.lower()), labeled=True)
+    encodings = torch.load(f'logs/encode_Profile_Encodings_{language}.pt')
+    # encodings = np.mean(encodings, axis=1)
+    svm([encodings, labels], language)
+      
+

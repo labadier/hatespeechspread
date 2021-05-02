@@ -40,21 +40,21 @@ def predict_example(spreader, no_spreader, u, checkp=0.25, method='euclidean'):
 
     return d
 
-    spreader_aster = spreader[list( np.random.choice( range(len(spreader)), int(checkp*len(spreader)), replace=False) )]
+    # spreader_aster = spreader[list( np.random.choice( range(len(spreader)), int(checkp*len(spreader)), replace=False) )]
 
-    y_hat = 0
-    for s in spreader_aster:
+    # y_hat = 0
+    # for s in spreader_aster:
         
-        no_spreader_aster = no_spreader[list(np.random.choice( range(len(no_spreader)), int(checkp*len(no_spreader)), replace=False))]
-        y_hat_aster = 0
-        sn = measure(s, u, method)
-        for n in no_spreader_aster:
-            nu = measure(n, u, method)
+    #     no_spreader_aster = no_spreader[list(np.random.choice( range(len(no_spreader)), int(checkp*len(no_spreader)), replace=False))]
+    #     y_hat_aster = 0
+    #     sn = measure(s, u, method)
+    #     for n in no_spreader_aster:
+    #         nu = measure(n, u, method)
 
-            y_hat_aster += signature(sn, nu, method)
-        y_hat = y_hat + (y_hat_aster >= len(no_spreader_aster)/2)
-    # print(y_hat, len(spreader_aster))
-    return (y_hat >= (len(spreader_aster)/2))
+    #         y_hat_aster += signature(sn, nu, method)
+    #     y_hat = y_hat + (y_hat_aster >= len(no_spreader_aster)/2)
+    # # print(y_hat, len(spreader_aster))
+    # return (y_hat >= (len(spreader_aster)/2))
 
 
 def K_Impostor(spreader, no_spreader, unk, checkp=0.25, method='euclidean', model=None):
@@ -280,7 +280,7 @@ class LSTMAtt_Classifier(torch.nn.Module):
         self.language = language
         self.att = AttentionLSTM(neurons=attention_neurons, dimension=hidden_size)
         self.bilstm = torch.nn.LSTM(batch_first=True, input_size=hidden_size, hidden_size=lstm_size, bidirectional=True, proj_size=0)
-        self.lstm = torch.nn.LSTM(batch_first=True, input_size=lstm_size*2, hidden_size=lstm_size, proj_size=0)
+        self.lstm = torch.nn.LSTM(batch_first=True, input_size=hidden_size, hidden_size=lstm_size, proj_size=0)
         self.dense = torch.nn.Linear(in_features=lstm_size, out_features=2)
         self.loss_criterion = torch.nn.CrossEntropyLoss() 
 
@@ -290,7 +290,7 @@ class LSTMAtt_Classifier(torch.nn.Module):
     def forward(self, A):
         
         X = self.att(A.to(device=self.device))
-        X, _ = self.bilstm(X)
+        # X, _ = self.bilstm(X)
         X, _  = self.lstm(X)
         X = self.dense(X[:,-1])
 
@@ -304,3 +304,28 @@ class LSTMAtt_Classifier(torch.nn.Module):
         if os.path.exists('./logs') == False:
             os.system('mkdir logs')
         torch.save(self.state_dict(), os.path.join('logs', path))
+
+
+def svm(task_data, language, splits = 5):
+    
+    from sklearn.svm import SVC
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.ensemble import GradientBoostingClassifier
+    from sklearn.ensemble import ExtraTreesClassifier#*
+    from sklearn.metrics import classification_report, accuracy_score
+    skf = StratifiedKFold(n_splits=splits, shuffle=True, random_state = 23)
+
+    overall_acc = 0
+    last_printed = None
+    for i, (train_index, test_index) in enumerate(skf.split(np.zeros_like(task_data[1]), task_data[1])):  
+
+        model = SVC()
+        model.fit(task_data[0][train_index], task_data[1][train_index])
+        output = model.predict(task_data[0][test_index])
+        acc = accuracy_score(task_data[1][test_index], output)
+        metrics = classification_report(output, task_data[1][test_index], target_names=['No Hate', 'Hate'],  digits=4, zero_division=1)        
+        print('Report Split: {} - acc: {}{}'.format(i+1, np.round(acc, decimals=2), '\n'))
+        print(metrics)
+        overall_acc += acc
+
+    print(f"{bcolors.OKGREEN}{bcolors.BOLD}{50*'*'}\nOveral Accuracy {language}: {overall_acc/splits}\n{50*'*'}{bcolors.ENDC}")

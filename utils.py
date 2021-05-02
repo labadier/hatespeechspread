@@ -24,14 +24,17 @@ def load_data(filename):
 
     return text, hateness
 
-def load_irony(filename):
+def conver_to_class(tweets, labels):
 
-    file = pd.read_csv(filename, usecols=['preprotext', 'irony'], sep='\t').to_numpy()
-    text = file[:,0]
-    inorny = np.array(file[:,1], dtype=np.int32)
+    example =[]
+    label = []
 
-    return text, inorny
-
+    for i, j in zip(tweets, labels):
+        example += list(i)
+        label += [j]*len(i)
+    example, label = np.array(example), np.array(label)
+    m = np.random.permutation(len(example))
+    return example[m], label[m]
 
 def read_truth(data_path):
     
