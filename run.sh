@@ -1,8 +1,8 @@
 clear
 hs=64
 # # Train Transformer Encoder
-python main.py -l ES -dp data/pan21-author-profiling-training-2021-03-14 -mode tEncoder -tmode offline -bs 64 -epoches 8 -interm_layer 64
-python main.py -l EN -dp data/pan21-author-profiling-training-2021-03-14 -mode tEncoder -tmode offline -bs 64 -epoches 8 -interm_layer 96
+# python main.py -l ES -dp data/pan21-author-profiling-training-2021-03-14 -mode tEncoder -tmode offline -bs 64 -epoches 8 -interm_layer 64
+# python main.py -l EN -dp data/pan21-author-profiling-training-2021-03-14 -mode tEncoder -tmode offline -bs 64 -epoches 8 -interm_layer 96
 # python main.py -l ES -dp data/hateval2019/hateval2019_es_train.csv -mode tEncoder -tmode offline -bs 20 -epoches 12 -interm_layer 96
 # python main.py -l EN -dp data/hateval2019/hateval2019_en_train.csv -mode tEncoder -tmode offline -bs 64 -epoches 12 -interm_layer 96
 
@@ -29,7 +29,8 @@ python main.py -l EN -dp data/pan21-author-profiling-training-2021-03-14 -mode t
 # # #Impostors Evaluation
 # python main.py -l EN  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 1 -metric cosine -up prototipical -ecnImp transformer -dt data/pan21-author-profiling-test-without-gold -output logs -interm_layer 64
 # python main.py -l ES  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 1 -metric cosine -up prototipical -ecnImp transformer -dt data/pan21-author-profiling-test-without-gold -output logs -interm_layer 64
-# #Impostors Evaluation deepmetric
+
+#Impostors Evaluation deepmetric
 # python main.py -l EN  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 1 -up prototipical -metric deepmetric -ecnImp transformer -dt data/pan21-author-profiling-test-without-gold -output logs -interm_layer $hs
 # python main.py -l ES  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 1 -up prototipical -metric deepmetric -ecnImp transformer -dt data/pan21-author-profiling-test-without-gold -output logs -interm_layer $hs
 
@@ -43,13 +44,15 @@ python main.py -l EN -dp data/pan21-author-profiling-training-2021-03-14 -mode t
 # python main.py -l ES  -mode tfcnn -dt data/pan21-author-profiling-test-without-gold -bs 32 -phase test -output logs -interm_layer 96
 
 # #GCN
-python main.py -l EN  -mode cgnn -dp data/pan21-author-profiling-training-2021-03-14 -epoches 60 -lr 1e-3 -decay 0 -phase train -bs 16 -interm_layer 128
-python main.py -l ES  -mode cgnn -dp data/pan21-author-profiling-training-2021-03-14 -epoches 60 -lr 1e-3 -decay 0 -phase train -bs 16 -interm_layer 128
+# python main.py -l EN  -mode cgnn -dp data/pan21-author-profiling-training-2021-03-14 -epoches 60 -lr 1e-4 -decay 0 -phase train -bs 16 -interm_layer 64
+# python main.py -l ES  -mode cgnn -dp data/pan21-author-profiling-training-2021-03-14 -epoches 60 -lr 1e-4 -decay 0 -phase train -bs 16 -interm_layer 64
 
 # #GCN pred
-# python main.py -l EN  -mode cgnn -dt data/pan21-author-profiling-test-without-gold -bs 32 -phase test -output logs -interm_layer 128
-# python main.py -l ES  -mode cgnn -dt data/pan21-author-profiling-test-without-gold -bs 32 -phase test -output logs -interm_layer 128
-python main.py -l EN -wp logs -mode cgnn -dp data/pan21-author-profiling-training-2021-03-14 -phase encode -bs 16 -interm_layer 128
+# python main.py -l EN  -mode cgnn -dt data/pan21-author-profiling-test-without-gold -bs 32 -phase test -output logs -interm_layer 64
+# python main.py -l ES  -mode cgnn -dt data/pan21-author-profiling-test-without-gold -bs 32 -phase test -output logs -interm_layer 64
+# python main.py -l EN -wp logs -mode cgnn -dp data/pan21-author-profiling-training-2021-03-14 -phase encode -bs 16 -interm_layer 64
+# python main.py -l ES -wp logs -mode cgnn -dp data/pan21-author-profiling-training-2021-03-14 -phase encode -bs 16 -interm_layer 64
+
 
 #LSTM Train
 # python main.py -l EN  -mode lstm -dp data/pan21-author-profiling-training-2021-03-14 -bs 16 -epoches 80 -lr 3e-4 -decay 0 -phase train -interm_layer $hs -lstm_size 32
@@ -61,4 +64,8 @@ python main.py -l EN -wp logs -mode cgnn -dp data/pan21-author-profiling-trainin
 
 
 #ML
-python main.py -mode svm -l EN -phase train -dp data/pan21-author-profiling-training-2021-03-14
+# python main.py -mode svm -l EN -phase train -dp data/pan21-author-profiling-training-2021-03-14
+# python main.py -mode svm -l ES -phase train -dp data/pan21-author-profiling-training-2021-03-14
+
+# CPP
+python main.py -mode cpp -dp logs/lol -output /home/nitro/Desktop

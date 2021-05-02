@@ -406,3 +406,7 @@ def compute_centers_PSC(language, labels, num_protos=10):
     plt.close()
 
     return P_set, N_set
+
+def copy_pred(file, path):
+
+    os.system(f'cp -r {file}/* {path}')

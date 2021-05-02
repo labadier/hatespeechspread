@@ -3,7 +3,7 @@ import argparse, sys, os, numpy as np, torch, random
 from models.models import Encoder, train_Encoder, train_Siamese, Siamese_Encoder, Siamese_Metric
 from models.CGNN import train_GCNN, GCN, predicgcn
 from utils import plot_training, load_data, load_data_PAN, make_pairs
-from utils import make_triplets,make_profile_pairs, save_predictions
+from utils import make_triplets,make_profile_pairs, save_predictions, copy_pred
 from utils import make_pairs_with_protos, compute_centers_PSC, conver_to_class
 from sklearn.metrics import f1_score
 from models.classifiers import K_Impostor, train_classifier, predict, FNN_Classifier, LSTMAtt_Classifier
@@ -77,8 +77,7 @@ if __name__ == '__main__':
     '''
     if os.path.exists('./logs') == False:
       os.system('mkdir logs')
-    text, _, hateness = load_data_PAN(os.path.join(data_path, language[:2].lower()))#load_data
-    text, hateness = conver_to_class(text, hateness)
+    text, hateness = load_data(data_path)
     history = train_Encoder(text, hateness, language, mode_weigth, splits, epoches, batch_size, max_length, interm_layer_size, learning_rate, decay, 1, 0.1)
     plot_training(history[-1], language, 'acc')
     exit(0)
@@ -271,11 +270,14 @@ if __name__ == '__main__':
         print( f"{bcolors.FAIL}{bcolors.BOLD}ERROR: Weight path set unproperly{bcolors.ENDC}")
         exit(1)
       encodings = torch.load(f'logs/train_Encodings_{language}.pt')
+      encodingstest = torch.load(f'logs/test_Encodings_{language}.pt')
       model = GCN(language, interm_layer_size, encodings.shape[-1])
 	
       model.load(weight_path)
       encs = model.get_encodings(encodings, batch_size)
-      torch.save(np.array(encs), f'logs/{phase}_Profile_Encodings_{language[:2]}.pt')
+      torch.save(np.array(encs), f'logs/train_Profile_Encodings_{language[:2]}.pt')
+      encs = model.get_encodings(encodingstest, batch_size)
+      torch.save(np.array(encs), f'logs/test_Profile_Encodings_{language[:2]}.pt')
       print(f"{bcolors.OKCYAN}{bcolors.BOLD}Encodings Saved Successfully{bcolors.ENDC}")
       exit(0)
 
@@ -302,8 +304,13 @@ if __name__ == '__main__':
 
   if mode == 'svm':
     tweets, _, labels = load_data_PAN(os.path.join(data_path, language.lower()), labeled=True)
-    encodings = torch.load(f'logs/encode_Profile_Encodings_{language}.pt')
+    encodings = torch.load(f'logs/train_Profile_Encodings_{language}.pt')
     # encodings = np.mean(encodings, axis=1)
     svm([encodings, labels], language)
       
+
+  if mode == 'cpp':
+
+    copy_pred(data_path, output)
+
 

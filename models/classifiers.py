@@ -32,29 +32,29 @@ def signature(sn, nu, method='similarity'):
 
 def predict_example(spreader, no_spreader, u, checkp=0.25, method='euclidean'):
     
-    d = None
-    for s in spreader:
-        dit = measure(s, u, method)
-        if d is None or d > dit:
-            d = dit
+    # d = None
+    # for s in spreader:
+    #     dit = measure(s, u, method)
+    #     if d is None or d > dit:
+    #         d = dit
 
-    return d
+    # return d
 
-    # spreader_aster = spreader[list( np.random.choice( range(len(spreader)), int(checkp*len(spreader)), replace=False) )]
+    spreader_aster = spreader[list( np.random.choice( range(len(spreader)), int(checkp*len(spreader)), replace=False) )]
 
-    # y_hat = 0
-    # for s in spreader_aster:
+    y_hat = 0
+    for s in spreader_aster:
         
-    #     no_spreader_aster = no_spreader[list(np.random.choice( range(len(no_spreader)), int(checkp*len(no_spreader)), replace=False))]
-    #     y_hat_aster = 0
-    #     sn = measure(s, u, method)
-    #     for n in no_spreader_aster:
-    #         nu = measure(n, u, method)
+        no_spreader_aster = no_spreader[list(np.random.choice( range(len(no_spreader)), int(checkp*len(no_spreader)), replace=False))]
+        y_hat_aster = 0
+        sn = measure(s, u, method)
+        for n in no_spreader_aster:
+            nu = measure(n, u, method)
 
-    #         y_hat_aster += signature(sn, nu, method)
-    #     y_hat = y_hat + (y_hat_aster >= len(no_spreader_aster)/2)
-    # # print(y_hat, len(spreader_aster))
-    # return (y_hat >= (len(spreader_aster)/2))
+            y_hat_aster += signature(sn, nu, method)
+        y_hat = y_hat + (y_hat_aster >= len(no_spreader_aster)/2)
+    # print(y_hat, len(spreader_aster))
+    return (y_hat >= (len(spreader_aster)/2))
 
 
 def K_Impostor(spreader, no_spreader, unk, checkp=0.25, method='euclidean', model=None):
@@ -71,7 +71,7 @@ def K_Impostor(spreader, no_spreader, unk, checkp=0.25, method='euclidean', mode
         ansp = predict_example(spreader, no_spreader, u, checkp, method)
         ansn = predict_example(no_spreader, spreader, u, checkp, method)
         # print(ansp, ansn)
-        Y[i] = (ansp <= ansn)
+        Y[i] = (ansp > ansn)
     # print(Y)
     return Y
 

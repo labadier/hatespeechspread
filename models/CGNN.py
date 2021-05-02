@@ -16,7 +16,7 @@ class GCN(torch.nn.Module):
 		# self.conv2 = torch_geometric.nn.ChebConv(hidden_channels, hidden_channels, 3)#3torch_geometric.nn.GCNConv(hidden_channels, hidden_channels)
 		# self.conv3 = torch_geometric.nn.ChebConv(hidden_channels, hidden_channels, 2)#2
 		self.lin = torch.nn.Linear(hidden_channels, 64)
-		self.pred = torch.nn.Sequential(torch.nn.LeakyReLU(), torch.nn.Linear(64, 2))
+		self.pred = torch.nn.Sequential(torch.nn.LeakyReLU(),  torch.nn.Linear(64, 32), torch.nn.Linear(32, 2))
 		self.best_acc = None
 		self.best_acc_train = None
 		self.language = language
@@ -40,6 +40,7 @@ class GCN(torch.nn.Module):
 		if phase == 'encode':
 			return x
 		return self.pred(x)
+		
 
 	def load(self, path):
 		self.load_state_dict(torch.load(path, map_location=self.device))
@@ -189,7 +190,7 @@ def train_GCNN(encodings, target, language, splits = 5, epoches = 4, batch_size 
 		del trainloader
 		del model
 		del devloader
-		break
+		# break
 	print(f"{bcolors.OKGREEN}{bcolors.BOLD}{50*'*'}\nOveral Accuracy {language}: {overall_acc/splits}\n{50*'*'}{bcolors.ENDC}")
 	return history
 
