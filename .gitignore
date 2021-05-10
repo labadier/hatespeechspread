@@ -12,3 +12,4 @@ logs
 .python-version
 tira.sh 
 *.npy
+run_labadier.sh

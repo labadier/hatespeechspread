@@ -1,3 +1,4 @@
+#!/bin/bash
 clear
 hs=64
 # # Train Transformer Encoder
@@ -22,11 +23,11 @@ hs=64
 # python main.py -l ES  -mode eSiamese -bs 64 -wp logs/siamese_encoder_ES.pt -phase test
 # python main.py -l EN  -mode eSiamese -bs 64 -wp logs/siamese_encoder_EN.pt -phase test
 
-# # Metric Learning
+# Metric Learning
 # python main.py -l ES  -mode metriclearn -bs 64 -epoches 80 -loss contrastive -lr 4e-5 -decay 1e-6 -wp logs/BSM_split_ES.pt -dp data/pan21-author-profiling-training-2021-03-14 -phase train -interm_layer $hs
 # python main.py -l EN  -mode metriclearn -bs 64 -epoches 80 -loss contrastive -lr 1e-4 -decay 1e-6 -wp logs/BSM_split_EN.pt -dp data/pan21-author-profiling-training-2021-03-14 -phase train -interm_layer $hs
 
-# # #Impostors Evaluation
+# # # #Impostors Evaluation
 # python main.py -l EN  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 1 -metric cosine -up prototipical -ecnImp transformer -dt data/pan21-author-profiling-test-without-gold -output logs -interm_layer 64
 # python main.py -l ES  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 1 -metric cosine -up prototipical -ecnImp transformer -dt data/pan21-author-profiling-test-without-gold -output logs -interm_layer 64
 
@@ -54,8 +55,8 @@ hs=64
 
 
 # LSTM Train
-python main.py -l EN  -mode lstm -dp data/pan21-author-profiling-training-2021-03-14 -bs 32 -epoches 60 -lr 1e-3 -decay 0 -phase train -interm_layer $hs -lstm_size 64
-python main.py -l ES  -mode lstm -dp data/pan21-author-profiling-training-2021-03-14 -bs 32 -epoches 60 -lr 9e-4 -decay 0 -phase train -interm_layer $hs -lstm_size 64
+python main.py -l EN  -mode lstm -dp data/pan21-author-profiling-training-2021-03-14 -bs 32 -epoches 80 -lr 4e-3 -decay 0 -phase train -interm_layer $hs -lstm_size 32
+python main.py -l ES  -mode lstm -dp data/pan21-author-profiling-training-2021-03-14 -bs 32 -epoches 80 -lr 4e-4 -decay 0 -phase train -interm_layer $hs -lstm_size 32
 
 #LSTM Pred
 # python main.py -l EN  -mode lstm -dt data/pan21-author-profiling-test-without-gold -output logs -phase test -interm_layer $hs -lstm_size 32
