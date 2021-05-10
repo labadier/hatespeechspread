@@ -1,0 +1,8 @@
+python-pytorh 
+matplotlib 
+transformers 
+emoji 
+progress
+scikit-learn
+pandas
+numpy
