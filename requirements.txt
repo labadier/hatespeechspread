@@ -1,4 +1,4 @@
-python-pytorh 
+torch
 matplotlib 
 transformers 
 emoji 
@@ -6,3 +6,5 @@ progress
 scikit-learn
 pandas
 numpy
+fuzzy-c-means
+torch-geometric
