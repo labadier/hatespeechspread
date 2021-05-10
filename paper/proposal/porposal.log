@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020/Arch Linux) (preloaded format=pdflatex 2021.3.30)  30 MAR 2021 18:00
+This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020/Arch Linux) (preloaded format=pdflatex 2021.5.5)  10 MAY 2021 09:24
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -327,7 +327,7 @@ Underfull \hbox (badness 10000) in paragraph at lines 84--86
 ] [4] (./porposal.aux) ) 
 Here is how much of TeX's memory you used:
  3765 strings out of 479383
- 50657 string characters out of 5875830
+ 50657 string characters out of 5875831
  341926 words of memory out of 5000000
  20822 multiletter control sequences out of 15000+600000
  414664 words of font info for 73 fonts, out of 8000000 for 9000

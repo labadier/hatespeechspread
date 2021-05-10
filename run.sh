@@ -36,32 +36,42 @@ hs=64
 # python main.py -l ES  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 1 -up prototipical -metric deepmetric -ecnImp transformer -dt data/pan21-author-profiling-test-without-gold -output logs -interm_layer $hs
 
 # #FCNN Train
-# python main.py -l EN  -mode tfcnn -dp data/pan21-author-profiling-training-2021-03-14 -bs 32 -epoches 80 -lr 1e-4 -decay 0 -phase train -interm_layer 96
-# python main.py -l ES  -mode tfcnn -dp data/pan21-author-profiling-training-2021-03-14 -bs 32 -epoches 80 -lr 1e-4 -decay 0 -phase train -interm_layer 96
+# python main.py -l EN  -mode tfcnn -dp data/pan21-author-profiling-training-2021-03-14 -bs 32 -epoches 80 -lr 1e-4 -decay 0 -phase train -interm_layer $hs
+# python main.py -l ES  -mode tfcnn -dp data/pan21-author-profiling-training-2021-03-14 -bs 32 -epoches 80 -lr 1e-4 -decay 0 -phase train -interm_layer $hs
 
 #FCNN pred
 # python main.py -l EN  -mode tfcnn -dt data/pan21-author-profiling-test-without-gold -bs 32 -phase test -output logs -interm_layer 96
 # python main.py -l ES  -mode tfcnn -dt data/pan21-author-profiling-test-without-gold -bs 32 -phase test -output logs -interm_layer 96
 
-# #GCN
-# python main.py -l EN  -mode cgnn -dp data/pan21-author-profiling-training-2021-03-14 -epoches 60 -lr 1e-4 -decay 0 -phase train -bs 16 -interm_layer 64
-# python main.py -l ES  -mode cgnn -dp data/pan21-author-profiling-training-2021-03-14 -epoches 60 -lr 1e-4 -decay 0 -phase train -bs 16 -interm_layer 64
+#FCNN encode
+# python main.py -l EN  -mode tfcnn -dt data/pan21-author-profiling-training-2021-03-14 -bs 32 -phase encode -output logs -interm_layer $hs
+# python main.py -l ES  -mode tfcnn -dt data/pan21-author-profiling-training-2021-03-14 -bs 32 -phase encode -output logs -interm_layer $hs
+
+
+#GCN
+# python main.py -l EN  -mode cgnn -dp data/pan21-author-profiling-training-2021-03-14 -epoches 60 -lr 1e-4 -decay 0 -phase train -bs 16 -interm_layer $hs
+# python main.py -l ES  -mode cgnn -dp data/pan21-author-profiling-training-2021-03-14 -epoches 60 -lr 1e-4 -decay 0 -phase train -bs 16 -interm_layer $hs
 
 # #GCN pred
 # python main.py -l EN  -mode cgnn -dt data/pan21-author-profiling-test-without-gold -bs 32 -phase test -output logs -interm_layer 64
 # python main.py -l ES  -mode cgnn -dt data/pan21-author-profiling-test-without-gold -bs 32 -phase test -output logs -interm_layer 64
-# python main.py -l EN -wp logs -mode cgnn -dp data/pan21-author-profiling-training-2021-03-14 -phase encode -bs 16 -interm_layer 64
-# python main.py -l ES -wp logs -mode cgnn -dp data/pan21-author-profiling-training-2021-03-14 -phase encode -bs 16 -interm_layer 64
+
+# #GCN encode
+# python main.py -l EN -wp logs -mode cgnn -dp data/pan21-author-profiling-training-2021-03-14 -phase encode -bs 16 -interm_layer $hs
+# python main.py -l ES -wp logs -mode cgnn -dp data/pan21-author-profiling-training-2021-03-14 -phase encode -bs 16 -interm_layer $hs
 
 
 # LSTM Train
-python main.py -l EN  -mode lstm -dp data/pan21-author-profiling-training-2021-03-14 -bs 32 -epoches 80 -lr 4e-3 -decay 0 -phase train -interm_layer $hs -lstm_size 32
-python main.py -l ES  -mode lstm -dp data/pan21-author-profiling-training-2021-03-14 -bs 32 -epoches 80 -lr 4e-4 -decay 0 -phase train -interm_layer $hs -lstm_size 32
+# python main.py -l EN  -mode lstm -dp data/pan21-author-profiling-training-2021-03-14 -bs 32 -epoches 60 -lr 1e-3 -decay 0 -phase train -interm_layer $hs -lstm_size 64
+# python main.py -l ES  -mode lstm -dp data/pan21-author-profiling-training-2021-03-14 -bs 32 -epoches 60 -lr 4e-4 -decay 0 -phase train -interm_layer $hs -lstm_size 64
 
 #LSTM Pred
-# python main.py -l EN  -mode lstm -dt data/pan21-author-profiling-test-without-gold -output logs -phase test -interm_layer $hs -lstm_size 32
-# python main.py -l ES  -mode lstm -dt data/pan21-author-profiling-test-without-gold -output logs -phase test -interm_layer $hs -lstm_size 32
+# python main.py -l EN  -mode lstm -dt data/pan21-author-profiling-test-without-gold -output logs -phase test -interm_layer $hs -lstm_size 64
+# python main.py -l ES  -mode lstm -dt data/pan21-author-profiling-test-without-gold -output logs -phase test -interm_layer $hs -lstm_size 64
 
+#LSTM encode
+# python main.py -l EN  -mode lstm -dt data/pan21-author-profiling-training-2021-03-14 -output logs -phase encode -interm_layer $hs -lstm_size 64
+# python main.py -l ES  -mode lstm -dt data/pan21-author-profiling-training-2021-03-14 -output logs -phase encode -interm_layer $hs -lstm_size 64
 
 #ML
 # python main.py -mode svm -l EN -phase train -dp data/pan21-author-profiling-training-2021-03-14
@@ -69,3 +79,6 @@ python main.py -l ES  -mode lstm -dp data/pan21-author-profiling-training-2021-0
 
 # CPP
 # python main.py -mode cpp -dp logs/lol -output /home/nitro/Desktop
+
+python main.py -l EN -mode gmu -phase train -dp data/pan21-author-profiling-training-2021-03-14  -bs 32 -epoches 80 -lr 1e-4 -decay 0 -phase train -interm_layer $hs
+python main.py -l ES -mode gmu -phase train -dp data/pan21-author-profiling-training-2021-03-14  -bs 32 -epoches 80 -lr 1e-4 -decay 0 -phase train -interm_layer $hs

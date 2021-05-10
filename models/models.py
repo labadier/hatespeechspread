@@ -1,4 +1,6 @@
 import torch, os, sys
+
+from transformers.utils.dummy_pt_objects import RetriBertModel
 sys.path.append('../')
 import numpy as np, pandas as pd
 from transformers import AutoTokenizer, AutoModel
@@ -382,18 +384,23 @@ class Siamese_Encoder(torch.nn.Module):
 
 class Aditive_Attention(torch.nn.Module):
 
-  def __init__(self, units=32, input=64):
+  def __init__(self, units=32, input=64, usetanh=False):
     super(Aditive_Attention, self).__init__()
     self.units = units
     self.aditive = torch.nn.Linear(in_features=input, out_features=1)
+    self.usetanh=usetanh
 
-  def forward(self, x):
+  def forward(self, x, getattention=False):
 
     attention = self.aditive(x)
     attention = torch.nn.functional.softmax(torch.squeeze(attention), dim=-1)
-    attention = x*torch.unsqueeze(attention, -1)
+    if self.usetanh == True:
+      attention = torch.tanh(x)*torch.unsqueeze(attention, -1)
+    else: attention = x*torch.unsqueeze(attention, -1)
     
     weighted_sum = torch.sum(attention, axis=1)
+    if getattention == True:
+      return weighted_sum, attention
     return weighted_sum
 
 class Siamese_Metric(torch.nn.Module):

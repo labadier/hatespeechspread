@@ -5,6 +5,7 @@ models/__pycache__
 __pycache__
 tmp.py
 data/pan21-author-profiling-training-2021-03-14
+data/pan21-author-profiling-test-without-gold
 .gitignore
 *.pt
 tmp*

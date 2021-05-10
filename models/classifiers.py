@@ -4,6 +4,7 @@ import torch, os
 
 from torch._C import device
 from torch.nn.modules import dropout
+from torch.nn.modules.activation import ReLU
 from transformers.tokenization_utils_base import TruncationStrategy
 from models.models import  Aditive_Attention, seed_worker
 from torch.utils.data import Dataset, DataLoader
@@ -105,7 +106,8 @@ class FNN_Classifier(torch.nn.Module):
         self.interm_neurons = interm_size
         self.encoder = torch.nn.Sequential(Aditive_Attention(units=32, input=self.interm_neurons[0]), 
                     # torch.nn.BatchNorm1d(num_features=self.interm_neurons[0]), torch.nn.LeakyReLU(),
-                    torch.nn.Linear(in_features=self.interm_neurons[0], out_features=self.interm_neurons[1]),
+                    torch.nn.Linear(in_features=self.interm_neurons[0], out_features=self.interm_neurons[1]))
+        self.encoder1 = torch.nn.Sequential(
                     torch.nn.BatchNorm1d(num_features=self.interm_neurons[1]), torch.nn.LeakyReLU(),
                     torch.nn.Dropout(p=0.3),
                     torch.nn.Linear(in_features=self.interm_neurons[1], out_features=2))
@@ -114,8 +116,11 @@ class FNN_Classifier(torch.nn.Module):
         self.device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
         self.to(device=self.device)
 
-    def forward(self, A):
-        return  self.encoder(A.to(device=self.device))
+    def forward(self, A, encode=False):
+        Z = self.encoder(A.to(device=self.device))
+        if encode == True:
+            return Z
+        return  self.encoder1(Z)
 
 
     def load(self, path):
@@ -125,6 +130,26 @@ class FNN_Classifier(torch.nn.Module):
         if os.path.exists('./logs') == False:
             os.system('mkdir logs')
         torch.save(self.state_dict(), os.path.join('logs', path))
+    
+    def get_encodings(self, encodings, batch_size):
+
+        self.eval()    
+        devloader = DataLoader(encodings, batch_size=batch_size, shuffle=False, num_workers=4, worker_init_fn=seed_worker)
+    
+        with torch.no_grad():
+            out = None
+            log = None
+            for k, data in enumerate(devloader, 0):
+                torch.cuda.empty_cache() 
+
+                dev_out = self.forward(data, encode=True)
+                if k == 0:
+                    out = dev_out
+                else: out = torch.cat((out, dev_out), 0)
+
+            out = out.cpu().numpy()
+            del devloader
+        return out 
 
 
 def train_classifier(model_name, task_data, language, splits = 5, epoches = 4, batch_size = 64, interm_layer_size = [64, 32], lr = 1e-5,  decay=0):
@@ -139,8 +164,10 @@ def train_classifier(model_name, task_data, language, splits = 5, epoches = 4, b
         history.append({'loss': [], 'acc':[], 'dev_loss': [], 'dev_acc': []})
         if model_name == 'classifier':
             model = FNN_Classifier(interm_layer_size, language)
-        else:
+        elif model_name == 'lstm':
             model = LSTMAtt_Classifier(interm_layer_size[0], interm_layer_size[1], interm_layer_size[2], language)
+        elif model_name == 'gmu':
+            model = GMU(interm_layer_size, language)
 
         optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=decay)
         trainloader = DataLoader(FNNData([task_data[0][train_index], task_data[1][train_index]]), batch_size=batch_size, shuffle=True, num_workers=4, worker_init_fn=seed_worker)
@@ -287,14 +314,16 @@ class LSTMAtt_Classifier(torch.nn.Module):
         self.device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
         self.to(device=self.device)
 
-    def forward(self, A):
+    def forward(self, A, encode=False):
         
         X = self.att(A.to(device=self.device))
         # X, _ = self.bilstm(X)
         X, _  = self.lstm(X)
-        X = self.dense(X[:,-1])
 
-        return  X
+        if encode == True:
+            return X[:,-1]
+
+        return  self.dense(X[:,-1])
 
 
     def load(self, path):
@@ -304,6 +333,26 @@ class LSTMAtt_Classifier(torch.nn.Module):
         if os.path.exists('./logs') == False:
             os.system('mkdir logs')
         torch.save(self.state_dict(), os.path.join('logs', path))
+
+    def get_encodings(self, encodings, batch_size):
+
+        self.eval()    
+        devloader = DataLoader(encodings, batch_size=batch_size, shuffle=False, num_workers=4, worker_init_fn=seed_worker)
+    
+        with torch.no_grad():
+            out = None
+            log = None
+            for k, data in enumerate(devloader, 0):
+                torch.cuda.empty_cache() 
+
+                dev_out = self.forward(data, encode=True)
+                if k == 0:
+                    out = dev_out
+                else: out = torch.cat((out, dev_out), 0)
+
+            out = out.cpu().numpy()
+            del devloader
+        return out 
 
 
 def svm(task_data, language, splits = 5):
@@ -329,3 +378,37 @@ def svm(task_data, language, splits = 5):
         overall_acc += acc
 
     print(f"{bcolors.OKGREEN}{bcolors.BOLD}{50*'*'}\nOveral Accuracy {language}: {overall_acc/splits}\n{50*'*'}{bcolors.ENDC}")
+
+
+class GMU(torch.nn.Module):
+
+    def __init__(self, hidden_size, language='EN'):
+
+        super(GMU, self).__init__()
+
+        self.best_acc = -1
+        self.language = language
+        self.gmu = Aditive_Attention(input=hidden_size, usetanh=True)
+        self.dense = torch.nn.Linear(in_features=hidden_size, out_features=2)
+        self.loss_criterion = torch.nn.CrossEntropyLoss() 
+
+        self.device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+        self.to(device=self.device)
+
+    def forward(self, A, attention=False):
+        
+        if attention == True:
+            _, att = self.gmu(A.to(device=self.device), getattention=True)
+            return att
+        X = self.gmu(A.to(device=self.device))
+        return self.dense(X)
+
+
+    def load(self, path):
+        self.load_state_dict(torch.load(path, map_location=self.device))
+
+    def save(self, path):
+        if os.path.exists('./logs') == False:
+            os.system('mkdir logs')
+        torch.save(self.state_dict(), os.path.join('logs', path))
+

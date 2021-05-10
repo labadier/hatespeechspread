@@ -1,7 +1,7 @@
 #%%
 import argparse, sys, os, numpy as np, torch, random
+from matplotlib.pyplot import axis
 from models.models import Encoder, train_Encoder, train_Siamese, Siamese_Encoder, Siamese_Metric
-from models.CGNN import train_GCNN, GCN, predicgcn
 from utils import plot_training, load_data, load_data_PAN, make_pairs
 from utils import make_triplets,make_profile_pairs, save_predictions, copy_pred
 from utils import make_pairs_with_protos, compute_centers_PSC, conver_to_class
@@ -244,12 +244,26 @@ if __name__ == '__main__':
       tweets_test, idx  = load_data_PAN(os.path.join(test_path, language.lower()), labeled=False)
       encodings = torch.load('logs/test_Encodings_{}.pt'.format(language))
       predict(model, 'classifier', encodings, idx, language, output, splits, batch_size, [interm_layer_size, 64, 32], save_predictions)
+    elif phase == 'encode':
+
+      model = FNN_Classifier(interm_size=[interm_layer_size, 64, 32], language=language)
+      model.load(f'logs/classifier_{language[:2]}_1.pt')
+
+      encodings = torch.load(f'logs/train_Encodings_{language}.pt')
+      encodingstest = torch.load(f'logs/test_Encodings_{language}.pt')
+      encs = model.get_encodings(encodings, batch_size)
+      torch.save(np.array(encs), f'logs/train_Profile_fcnn_Encodings_{language[:2]}.pt')
+      encs = model.get_encodings(encodingstest, batch_size)
+      torch.save(np.array(encs), f'logs/test_Profile_fcnn_Encodings_{language[:2]}.pt')
+      print(f"{bcolors.OKCYAN}{bcolors.BOLD}Encodings Saved Successfully{bcolors.ENDC}")
+      
     exit(0)
 
   if mode == 'cgnn':
     '''
       Train Train Graph Concolutional Neural Network
     ''' 
+    from models.CGNN import train_GCNN, GCN, predicgcn
     if phase == 'train':
 
       _, _, labels = load_data_PAN(os.path.join(data_path, language.lower()), labeled=True)
@@ -275,9 +289,9 @@ if __name__ == '__main__':
 	
       model.load(weight_path)
       encs = model.get_encodings(encodings, batch_size)
-      torch.save(np.array(encs), f'logs/train_Profile_Encodings_{language[:2]}.pt')
+      torch.save(np.array(encs), f'logs/train_Profile_gcn_Encodings_{language[:2]}.pt')
       encs = model.get_encodings(encodingstest, batch_size)
-      torch.save(np.array(encs), f'logs/test_Profile_Encodings_{language[:2]}.pt')
+      torch.save(np.array(encs), f'logs/test_Profile_gcn_Encodings_{language[:2]}.pt')
       print(f"{bcolors.OKCYAN}{bcolors.BOLD}Encodings Saved Successfully{bcolors.ENDC}")
       exit(0)
 
@@ -287,19 +301,32 @@ if __name__ == '__main__':
       Train Train Att-FCNN
     ''' 
     if phase == 'train':
-      
-
+  
       _, _, labels = load_data_PAN(os.path.join(data_path, language.lower()), labeled=True)
       encodings = torch.load('logs/train_Encodings_{}.pt'.format(language))
 
       history = train_classifier('lstm', [encodings, labels], language, splits, epoches, batch_size, interm_layer_size = [interm_layer_size, 32, lstm_hidden_size], lr=learning_rate, decay=decay)
       plot_training(history[-1], language + '_lstm', 'acc')
-    else:
+    elif phase == 'test':
       model = LSTMAtt_Classifier(interm_layer_size, 32, lstm_hidden_size, language)
       tweets_test, idx  = load_data_PAN(os.path.join(test_path, language.lower()), labeled=False)
       encodings = torch.load('logs/test_Encodings_{}.pt'.format(language))
       predict(model, 'lstm', encodings, idx, language, output, splits, batch_size, [interm_layer_size, 64, 32], save_predictions)
+    
+    elif phase == 'encode':
 
+      model = LSTMAtt_Classifier(interm_layer_size, 32, lstm_hidden_size, language)
+      model.load(f'logs/lstm_{language[:2]}_1.pt')
+
+
+      encodings = torch.load(f'logs/train_Encodings_{language}.pt')
+      encodingstest = torch.load(f'logs/test_Encodings_{language}.pt')
+      encs = model.get_encodings(encodings, batch_size)
+      torch.save(np.array(encs), f'logs/train_Profile_lstm_Encodings_{language[:2]}.pt')
+      encs = model.get_encodings(encodingstest, batch_size)
+      torch.save(np.array(encs), f'logs/test_Profile_lstm_Encodings_{language[:2]}.pt')
+      print(f"{bcolors.OKCYAN}{bcolors.BOLD}Encodings Saved Successfully{bcolors.ENDC}")
+      
     exit(0)
 
   if mode == 'svm':
@@ -312,5 +339,24 @@ if __name__ == '__main__':
   if mode == 'cpp':
 
     copy_pred(data_path, output)
+
+  if mode == 'gmu':
+
+    #load multimodal features from mean, graph_based, recurrent and attetion features
+    features = []
+    features.append(torch.load(f'logs/{phase}_Encodings_{language}.pt'))#LM encoder mean
+    features[-1] = torch.unsqueeze(torch.tensor(np.mean(features[-1], axis=1)), axis=1)
+    features.append(torch.unsqueeze(torch.tensor(torch.load(f'logs/{phase}_Profile_gcn_Encodings_{language}.pt')), axis=1))#graph conv
+    features.append(torch.unsqueeze(torch.tensor(torch.load(f'logs/{phase}_Profile_lstm_Encodings_{language}.pt')), axis=1))#recurrent
+    features.append(torch.unsqueeze(torch.tensor(torch.load(f'logs/{phase}_Profile_fcnn_Encodings_{language}.pt')), axis=1))#att
+
+    features = np.concatenate(features, axis=1)
+
+    if phase == 'train':
+      _, _, labels = load_data_PAN(os.path.join(data_path, language.lower()), labeled=True)
+  
+      history = train_classifier('gmu', [features, labels], language, splits, epoches, batch_size, interm_layer_size = interm_layer_size, lr=learning_rate, decay=decay)
+      plot_training(history[-1], language + '_gmu', 'acc')
+    print(features.shape)
 
 
