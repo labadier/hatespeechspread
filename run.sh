@@ -3,15 +3,15 @@ clear
 hs=64
 data_test=data/pan21-author-profiling-test-without-gold
 
-# # Train Transformer Encoder
-# python main.py -l ES -dp data/hateval2019/hateval2019_es_train.csv -mode tEncoder -tmode online -bs 64 -epoches 12 -interm_layer $hs
-# python main.py -l EN -dp data/hateval2019/hateval2019_en_train.csv -mode tEncoder -tmode online -bs 64 -epoches 12 -interm_layer $hs
+# Train Transformer Encoder
+python main.py -l ES -dp data/hateval2019/hateval2019_es_train.csv -mode tEncoder -tmode online -bs 64 -epoches 12 -interm_layer $hs
+python main.py -l EN -dp data/hateval2019/hateval2019_en_train.csv -mode tEncoder -tmode online -bs 64 -epoches 12 -interm_layer $hs
 
-# Encode from Transformers
-# python main.py -l ES -dp data/pan21-author-profiling-training-2021-03-14 -wp logs -mode encode -tmode online -bs 200 -phase train -interm_layer $hs
-# python main.py -l EN -dp data/pan21-author-profiling-training-2021-03-14 -wp logs -mode encode -tmode online -bs 200 -phase train -interm_layer $hs
-# python main.py -l ES -dp $data_test -wp logs -mode encode -tmode online -bs 200 -phase test -interm_layer $hs
-# python main.py -l EN -dp $data_test -wp logs -mode encode -tmode online -bs 200 -phase test -interm_layer $hs
+Encode from Transformers
+python main.py -l ES -dp data/pan21-author-profiling-training-2021-03-14 -wp logs -mode encode -tmode online -bs 200 -phase train -interm_layer $hs
+python main.py -l EN -dp data/pan21-author-profiling-training-2021-03-14 -wp logs -mode encode -tmode online -bs 200 -phase train -interm_layer $hs
+python main.py -l ES -dp $data_test -wp logs -mode encode -tmode online -bs 200 -phase test -interm_layer $hs
+python main.py -l EN -dp $data_test -wp logs -mode encode -tmode online -bs 200 -phase test -interm_layer $hs
 
 # # Train Siamese
 # python main.py -l ES  -mode tSiamese -bs 64 -epoches 100 -loss triplet -lr 1e-5 -decay 0 -phase train

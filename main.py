@@ -180,11 +180,20 @@ if __name__ == '__main__':
       encodings = torch.load('logs/train_Encodings_{}.pt'.format(language))
       encodings_test = torch.load('logs/test_Encodings_{}.pt'.format(language))
     else:
-      enc_name = 'Encodings' if ecnImp == 'transformer' else 'Encodingst'
+      if ecnImp == 'transformer':
+        enc_name = 'Encodings'
+      elif ecnImp == 'gcn':
+        enc_name = 'Profile_gcn_Encodings'
+      elif ecnImp == 'lstm':
+        enc_name = 'Profile_lstm_Encodings'
+      elif ecnImp == 'fcnn':
+        enc_name = 'Profile_fcnn_Encodings'
+
       encodings = torch.load('logs/train_{}_{}.pt'.format(enc_name, language))
-      encodings = np.mean(encodings, axis=1)
       encodings_test = torch.load('logs/test_{}_{}.pt'.format(enc_name, language))
-      encodings_test = np.mean(encodings_test, axis=1)
+      if ecnImp == 'transformer':
+        encodings = np.mean(encodings, axis=1)
+        encodings_test = np.mean(encodings_test, axis=1)
       
     skf = StratifiedKFold(n_splits=splits, shuffle=True, random_state = 23)   
     overl_acc = 0
