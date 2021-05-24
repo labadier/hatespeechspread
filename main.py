@@ -189,10 +189,9 @@ if __name__ == '__main__':
     skf = StratifiedKFold(n_splits=splits, shuffle=True, random_state = 23)   
     overl_acc = 0
 
-    # file = open("{}_{}.txt".format(filee, language), "a")
-    # file.write('*'*50 + '\n')
-    # file.write("   metric:{}  coef:{}   Encoder:{}\n".format(metric, coef, ecnImp))
-    # file.write('*'*50 + '\n')
+    # printf('*'*50)
+    # printf("   metric:{}  coef:{}   Encoder:{}".format(metric, coef, ecnImp))
+    # printf('*'*50)
 
     Y_Test = np.zeros((len(tweets_test),))
     for i, (train_index, test_index) in enumerate(skf.split(encodings, labels)):
@@ -201,7 +200,7 @@ if __name__ == '__main__':
 
       if up == "prototipical":
         y_hat = K_Impostor(encodings[P_Set], encodings[N_Set], unk, checkp=coef, method=metric, model=model)
-        # Y_Test += K_Impostor(encodings[P_Set], encodings[N_Set], encodings_test, checkp=coef, method=metric, model=model)
+        Y_Test += K_Impostor(encodings[P_Set], encodings[N_Set], encodings_test, checkp=coef, method=metric, model=model)
       else:
         known = encodings[train_index]
         known_labels = labels[train_index]
@@ -210,18 +209,15 @@ if __name__ == '__main__':
         N_idx = list(np.argwhere(labels==0).reshape(-1))
 
         y_hat = K_Impostor(encodings[P_idx], encodings[N_idx], unk, checkp=coef, method=metric, model=model)
-        # Y_Test += K_Impostor(encodings[P_idx], encodings[N_idx], encodings_test, checkp=coef, method=metric, model=model)
+        Y_Test += K_Impostor(encodings[P_idx], encodings[N_idx], encodings_test, checkp=coef, method=metric, model=model)
       
       metrics = classification_report(unk_labels, y_hat, target_names=['No Hate', 'Hate'],  digits=4, zero_division=1)
       acc = accuracy_score(unk_labels, y_hat)
       overl_acc += acc
       print('Report Split: {} - acc: {}{}'.format(i+1, np.round(acc, decimals=2), '\n'))
-      # file.write('Report Split: {} - acc: {}{}'.format(i+1, np.round(acc, decimals=2), '\n'))
       print(metrics)
-    #   # break
+
     print('Accuracy {}: {}'.format(language, np.round(overl_acc/splits, decimals=2)))
-    # file.write('Accuracy {}: {}\n\n'.format(language, np.round(overl_acc/splits, decimals=2)))
-    # file.close()
     save_predictions(idx, np.int32(np.round(Y_Test/splits, decimals=0)), language, output)
     # print(classification_report(labels, np.int32(np.round(Y_Test/splits, decimals=0)), target_names=['No Hate', 'Hate'],  digits=4, zero_division=1))
       
