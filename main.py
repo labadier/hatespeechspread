@@ -170,8 +170,8 @@ if __name__ == '__main__':
 
     tweets, _, labels = load_data_PAN(os.path.join(data_path, language.lower()), labeled=True)
     tweets_test, idx  = load_data_PAN(os.path.join(test_path, language.lower()), labeled=False)
-    P_Set = list(np.load(f'logs/PostitivePrototypeIndexes_{language}.npy'))
-    N_Set = list(np.load(f'logs/NegativePrototypeIndexes_{language}.npy'))
+    # P_Set = list(np.load(f'logs/PostitivePrototypeIndexes_{language}.npy'))
+    # N_Set = list(np.load(f'logs/NegativePrototypeIndexes_{language}.npy'))
 
     model = None
     if metric == 'deepmetric':
@@ -206,8 +206,8 @@ if __name__ == '__main__':
         known = encodings[train_index]
         known_labels = labels[train_index]
 
-        P_idx = list(np.argwhere(known_labels==1).reshape(-1))
-        N_idx = list(np.argwhere(known_labels==0).reshape(-1))
+        P_idx = list(np.argwhere(labels==1).reshape(-1))
+        N_idx = list(np.argwhere(labels==0).reshape(-1))
 
         y_hat = K_Impostor(encodings[P_idx], encodings[N_idx], unk, checkp=coef, method=metric, model=model)
         # Y_Test += K_Impostor(encodings[P_idx], encodings[N_idx], encodings_test, checkp=coef, method=metric, model=model)

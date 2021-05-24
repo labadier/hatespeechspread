@@ -227,7 +227,6 @@ def predicgcn(encodings, idx, language, splits, output, batch_size, hidden_chann
 
 			y_hat += torch.argmax(torch.nn.functional.softmax(out, dim=-1), axis=-1).cpu().numpy()
 	y_hat = np.int32(np.round(y_hat/splits, decimals=0))
-	print(y_hat)
 	save_predictions(idx, y_hat, language, output)
 
 
