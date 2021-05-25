@@ -67,7 +67,7 @@ def K_Impostor(spreader, no_spreader, unk, checkp=0.25, method='euclidean', mode
         metric['deepmetric'] = lambda x, y : model.forward(torch.unsqueeze(torch.tensor(x), 0), torch.unsqueeze(torch.tensor(y), 0))
 
     Y = np.zeros((len(unk), ))
-    print(f'Spreaders Protos: {spreader.shape} No Spreaders Protos: {no_spreader.shape}')
+    # print(f'Spreaders Protos: {spreader.shape} No Spreaders Protos: {no_spreader.shape}')
     for i, u in zip(range(len(unk)), unk):
         ansp = predict_example(spreader, no_spreader, u, checkp, method)
         ansn = predict_example(no_spreader, spreader, u, checkp, method)

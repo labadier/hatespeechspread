@@ -37,7 +37,7 @@ def check_params(args=None):
   parser.add_argument('-loss', metavar='loss', help='Loss for Siamese Architecture', default='contrastive', choices=['triplet', 'contrastive'] )
   parser.add_argument('-rp', metavar='randpro', help='Between 0 and 1 float to choose random prototype among examples', type=float, default=0.25)
   parser.add_argument('-metric', metavar='mtricImp', help='Metric to compare on Impostor Method', default='cosine', choices=['cosine', 'euclidean', 'deepmetric'] )
-  parser.add_argument('-ecnImp', metavar='EncodertoImp', help='Encoder to use on Importor either Siamese or Transformer', default='transformer', choices=['transformer', 'siamese'] )
+  parser.add_argument('-ecnImp', metavar='EncodertoImp', help='Encoder to use on Importor either Siamese or Transformer', default='transformer', choices=['transformer', 'siamese', 'fcnn', 'lstm', 'gcn'] )
   parser.add_argument('-dt', metavar='data_test', help='Get Data for test')
   parser.add_argument('-up', metavar='useof_prototype', help='Using Prototipes for Impostor or compare to random examples', default="prototipical", choices=["prototipical", "random"])
   parser.add_argument('-lstm_size', metavar='LSTM_hidden_size', type=int,help='LSTM classfifier hidden size')
@@ -198,9 +198,9 @@ if __name__ == '__main__':
     skf = StratifiedKFold(n_splits=splits, shuffle=True, random_state = 23)   
     overl_acc = 0
 
-    # printf('*'*50)
-    # printf("   metric:{}  coef:{}   Encoder:{}".format(metric, coef, ecnImp))
-    # printf('*'*50)
+    print('*'*50)
+    print("   metric:{}  coef:{}   Encoder:{}".format(metric, coef, ecnImp))
+    print('*'*50)
 
     Y_Test = np.zeros((len(tweets_test),))
     for i, (train_index, test_index) in enumerate(skf.split(encodings, labels)):
