@@ -29,8 +29,8 @@ python main.py -l EN -dp $data_test -wp logs -mode encode -tmode online -bs 200 
 # python main.py -l EN  -mode metriclearn -bs 64 -epoches 80 -loss contrastive -lr 1e-4 -decay 1e-6 -wp logs/BSM_split_EN.pt -dp data/pan21-author-profiling-training-2021-03-14 -phase train -interm_layer $hs
 
 # # # #Impostors Evaluation
-python main.py -l EN  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 0.2 -metric cosine -up random -ecnImp transformer -dt $data_test -output $out -interm_layer $hs
-python main.py -l ES  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 0.3 -metric cosine -up random -ecnImp transformer -dt $data_test -output $out -interm_layer $hs
+python main.py -l EN  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 0.4 -metric cosine -up random -ecnImp transformer -dt $data_test -output $out -interm_layer $hs
+python main.py -l ES  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 0.45 -metric cosine -up random -ecnImp transformer -dt $data_test -output $out -interm_layer $hs
 
 #Impostors Evaluation deepmetric
 # python main.py -l EN  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 1 -up prototipical -metric deepmetric -ecnImp transformer -dt data/pan21-author-profiling-test-without-gold -output logs -interm_layer $hs
