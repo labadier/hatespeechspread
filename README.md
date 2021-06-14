@@ -1,10 +1,10 @@
 Accompanying code for participating system at PAN 2021 Task 4: Profiling Hate Speech Spreaders on Twitter. See the link below for our paper with the system description.
 
-###Usage
+### Usage
 
 For training or testing the model, run the main.py script with the corresponding parameters. It must be taken into account that we presented different approaches for modeling the users' profiles, for this some parameters differ from one model to another. Also, our architecture is modular, hence every module is trained independently.
 
-####Tweets Encoder
+#### Tweets Encoder
 This module is based on pre-trained models from HuggingFace Transformer Library and pre-trained based models will be downloaded after the training process. To encode independently each tweet you need to train the Encoders as follows:
 
 ```shell
@@ -17,7 +17,7 @@ Where:
 
 To Encode the tweets you need to run the same command as before, but setting `-mode encode` and `data-path` with the path of data to be encoded.
 
-####Profile Modeling
+#### Profile Modeling
 In this step, we are assuming that the isolated tweets have already been encoded by the Tweets Encoder. The profile is modeled by means of an FCNN or a Spectral Graph Neural Net to train these models you must run:
 
 ```shell
@@ -27,7 +27,7 @@ In this step, we are assuming that the isolated tweets have already been encoded
 
 Where `model` is the kind of deep model to be employed (`cgnn` or `tfcnn` for convolutional o FCNN respectively) and `epoch` can be set to `-1` to use the default epoch hyperparameter. To encode the profiles just need to set `-phase` to `encode`.
 
-####Deep Impostor Method
+#### Deep Impostor Method
 
 This method needs to have available the modeling of the training profiles for making predictions on test data. For making predictions run:
 
