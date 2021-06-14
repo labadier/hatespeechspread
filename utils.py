@@ -3,7 +3,7 @@ import pandas as pd, numpy as np, glob
 import xml.etree.ElementTree as XT
 import torch, os
 from fcmeans import FCM
-from sklearn.metrics.pairwise import euclidean_distances
+from sklearn.metrics.pairwise import euclidean_distances, cosine_similarity
 from sklearn.manifold import TSNE
 
 class bcolors:
@@ -308,7 +308,7 @@ def save_predictions(idx, y_hat, language, path):
 def compute_centers_PSC(language, labels, num_protos=10):
 
     encoding = torch.load(f'logs/train_Encodings_{language}.pt')
-    hate_usage = torch.load(f'logs/train_pred_{language}.pt')
+    # hate_usage = torch.load(f'logs/train_pred_{language}.pt')
 
     points = np.zeros((encoding.shape[0], encoding.shape[-1]))
     for i in range(len(points)):
@@ -345,8 +345,8 @@ def compute_centers_PSC(language, labels, num_protos=10):
             closeness = None
             for j in range(len(idx)):
                 
-                d = euclidean_distances(midle.reshape(1, points.shape[1]), points[idx[j]].reshape(1, points.shape[1]))
-                if closeness == None or closeness > d:
+                d = cosine_similarity(midle.reshape(1, points.shape[1]), points[idx[j]].reshape(1, points.shape[1]))
+                if closeness == None or closeness < d:
                     closeness = d
                     protos[-1] = idx[j]
         else:
@@ -361,8 +361,8 @@ def compute_centers_PSC(language, labels, num_protos=10):
                     closeness = None
                     for k in range(len(idx)):
                         if labels[idx[k]] != Major_class:
-                            d = euclidean_distances(points[idx[j]].reshape(1, points.shape[1]), points[idx[k]].reshape(1, points.shape[1]))
-                            if closeness == None or closeness > d:
+                            d = cosine_similarity(points[idx[j]].reshape(1, points.shape[1]), points[idx[k]].reshape(1, points.shape[1]))
+                            if closeness == None or closeness < d:
                                 closeness = d
                                 new_p = idx[k]
                     protos.append(new_p)
@@ -370,8 +370,8 @@ def compute_centers_PSC(language, labels, num_protos=10):
                     closeness = None
                     for k in range(len(idx)):
                         if labels[idx[k]] == Major_class:
-                            d = euclidean_distances(points[protos[-1]].reshape(1, points.shape[1]), points[idx[k]].reshape(1, points.shape[1]))
-                            if closeness == None or closeness > d:
+                            d = cosine_similarity(points[protos[-1]].reshape(1, points.shape[1]), points[idx[k]].reshape(1, points.shape[1]))
+                            if closeness == None or closeness < d:
                                 closeness = d
                                 new_p = idx[k]
                     protos.append(new_p)

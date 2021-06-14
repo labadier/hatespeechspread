@@ -29,7 +29,7 @@ def check_params(args=None):
   parser.add_argument('-splits', metavar='splits', default = 5, type=int, help='spits cross validation')
   parser.add_argument('-ml', metavar='max_length', default = 100, type=int, help='Maximun Tweets Length')
   parser.add_argument('-interm_layer', metavar='int_layer', default = 64, type=int, help='Intermediate layers neurons')
-  parser.add_argument('-epoches', metavar='epoches', default=8, type=int, help='Trainning Epoches')
+  parser.add_argument('-epoches', metavar='epoches', default=12, type=int, help='Trainning Epoches')
   parser.add_argument('-bs', metavar='batch_size', default=64, type=int, help='Batch Size')
   parser.add_argument('-dp', metavar='data_path', help='Data Path')
   parser.add_argument('-mode', metavar='mode', required=True, help='Encoder Mode')#, choices=['tEncoder', 'tSiamese', 'eSiamese', 'encode', 'pEncoder', 'tPredictor', learnmetric])
@@ -101,6 +101,7 @@ if __name__ == '__main__':
     tweets, _ = load_data_PAN(os.path.join(data_path, language[:2].lower()), False)
     preds = []
     encs = []
+    batch_size = 200
     for i in tweets:
       e, l = model.get_encodings(i, batch_size)
       encs.append(e)
@@ -170,8 +171,9 @@ if __name__ == '__main__':
 
     tweets, _, labels = load_data_PAN(os.path.join(data_path, language.lower()), labeled=True)
     tweets_test, idx  = load_data_PAN(os.path.join(test_path, language.lower()), labeled=False)
-    # P_Set = list(np.load(f'logs/PostitivePrototypeIndexes_{language}.npy'))
-    # N_Set = list(np.load(f'logs/NegativePrototypeIndexes_{language}.npy'))
+    if up == "prototipical":
+      P_Set = list(np.load(f'logs/PostitivePrototypeIndexes_{language}.npy'))
+      N_Set = list(np.load(f'logs/NegativePrototypeIndexes_{language}.npy'))
 
     model = None
     if metric == 'deepmetric':
@@ -233,6 +235,8 @@ if __name__ == '__main__':
   
   if mode == 'tfcnn':
 
+    if epoches == -1:
+      epoches = 80
     '''
       Train Train Att-FCNN
     ''' 
@@ -265,6 +269,10 @@ if __name__ == '__main__':
     exit(0)
 
   if mode == 'cgnn':
+
+    if epoches == -1:
+      epoches = 80
+
     '''
       Train Train Graph Concolutional Neural Network
     ''' 

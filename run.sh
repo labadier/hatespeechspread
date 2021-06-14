@@ -5,14 +5,14 @@ data_test=data/pan21-author-profiling-test-without-gold #replace with test data 
 out=logs  #replace with predictions route
 
 # Train Transformer Encoder
-python main.py -l ES -dp data/hateval2019/hateval2019_es_train.csv -mode tEncoder -tmode online -bs 64 -epoches 12 -interm_layer $hs
-python main.py -l EN -dp data/hateval2019/hateval2019_en_train.csv -mode tEncoder -tmode online -bs 64 -epoches 12 -interm_layer $hs
+# python main.py -l ES -dp data/hateval2019/hateval2019_es_train.csv -mode tEncoder -tmode online -bs 64 -epoches 12 -interm_layer $hs
+# python main.py -l EN -dp data/hateval2019/hateval2019_en_train.csv -mode tEncoder -tmode online -bs 64 -epoches 12 -interm_layer $hs
 
 # Encode from Transformers
-python main.py -l ES -dp data/pan21-author-profiling-training-2021-03-14 -wp logs -mode encode -tmode online -bs 200 -phase train -interm_layer $hs
-python main.py -l EN -dp data/pan21-author-profiling-training-2021-03-14 -wp logs -mode encode -tmode online -bs 200 -phase train -interm_layer $hs
-python main.py -l ES -dp $data_test -wp logs -mode encode -tmode online -bs 200 -phase test -interm_layer $hs
-python main.py -l EN -dp $data_test -wp logs -mode encode -tmode online -bs 200 -phase test -interm_layer $hs
+# python main.py -l ES -dp data/pan21-author-profiling-training-2021-03-14 -wp logs -mode encode -tmode online -bs 200 -phase train -interm_layer $hs
+# python main.py -l EN -dp data/pan21-author-profiling-training-2021-03-14 -wp logs -mode encode -tmode online -bs 200 -phase train -interm_layer $hs
+# python main.py -l ES -dp $data_test -wp logs -mode encode -tmode online -bs 200 -phase test -interm_layer $hs
+# python main.py -l EN -dp $data_test -wp logs -mode encode -tmode online -bs 200 -phase test -interm_layer $hs
 
 # # Train Siamese
 # python main.py -l ES  -mode tSiamese -bs 64 -epoches 100 -loss triplet -lr 1e-5 -decay 0 -phase train
@@ -29,12 +29,12 @@ python main.py -l EN -dp $data_test -wp logs -mode encode -tmode online -bs 200 
 # python main.py -l EN  -mode metriclearn -bs 64 -epoches 80 -loss contrastive -lr 1e-4 -decay 1e-6 -wp logs/BSM_split_EN.pt -dp data/pan21-author-profiling-training-2021-03-14 -phase train -interm_layer $hs
 
 # # # #Impostors Evaluation
-python main.py -l EN  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 0.4 -metric cosine -up random -ecnImp transformer -dt $data_test -output $out -interm_layer $hs
-python main.py -l ES  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 0.45 -metric cosine -up random -ecnImp transformer -dt $data_test -output $out -interm_layer $hs
+# python main.py -l EN  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 0.4 -metric cosine -up random -ecnImp transformer -dt $data_test -output $out -interm_layer $hs
+# python main.py -l ES  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 0.45 -metric cosine -up random -ecnImp transformer -dt $data_test -output $out -interm_layer $hs
 
 #Impostors Evaluation deepmetric
-# python main.py -l EN  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 1 -up prototipical -metric deepmetric -ecnImp transformer -dt data/pan21-author-profiling-test-without-gold -output logs -interm_layer $hs
-# python main.py -l ES  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 1 -up prototipical -metric deepmetric -ecnImp transformer -dt data/pan21-author-profiling-test-without-gold -output logs -interm_layer $hs
+python main.py -l EN  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 0.8 -up prototipical -metric deepmetric -ecnImp fcnn -dt data/pan21-author-profiling-test-without-gold -output logs -interm_layer $hs
+python main.py -l ES  -mode tImpostor -dp data/pan21-author-profiling-training-2021-03-14 -rp 0.7 -up prototipical -metric deepmetric -ecnImp fcnn -dt data/pan21-author-profiling-test-without-gold -output logs -interm_layer $hs
 
 # #FCNN Train
 # python main.py -l EN  -mode tfcnn -dp data/pan21-author-profiling-training-2021-03-14 -bs 32 -epoches 80 -lr 1e-4 -decay 0 -phase train -interm_layer $hs

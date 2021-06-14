@@ -107,6 +107,7 @@ class Encoder(torch.nn.Module):
   def __init__(self, interm_size=64, max_length=120, language='EN', mode_weigth='online'):
 
     if language[-1] == '_':
+      global AdapterType
       from transformers import AdapterType
 
     super(Encoder, self).__init__()
