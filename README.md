@@ -1,4 +1,4 @@
-Accompanying code for participating system at PAN 2021 Task 4: Profiling Hate Speech Spreaders on Twitter. See the link below for our paper with the system description.
+Accompanying code for participating system at PAN 2021: Profiling Hate Speech Spreaders on Twitter. See this [link](http://ceur-ws.org/Vol-2765/paper134.pdf) for our paper with the system description.
 
 ### Usage
 
